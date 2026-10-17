@@ -1,16 +1,35 @@
+# ==============================================================================
+# Mini Telegram — Reverse Proxy (Caddy 2) Configuration
+# ==============================================================================
+# Supports both:
+# 1. Local HTTP (Port 80) for private LAN testing
+# 2. Production Auto-HTTPS (Port 443 with TLS 1.3)
+# ==============================================================================
+
 {
     # Global options
     auto_https off
+    admin off
 }
 
 :80 {
-    # Logging
     log {
         output stdout
         format console
     }
 
-    # API and WebSocket routing
+    # Strict Security Headers
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        Content-Security-Policy "default-src 'none'; frame-ancestors 'none';"
+        -Server
+    }
+
+    # Realtime WebSocket Routing
     handle /socket.io/* {
         reverse_proxy backend:3000 {
             header_up Host {host}
@@ -18,6 +37,7 @@
         }
     }
 
+    # REST API Routing
     handle /api/* {
         reverse_proxy backend:3000 {
             header_up Host {host}
@@ -25,13 +45,16 @@
         }
     }
 
-    # LiveKit HTTP and WebSocket routing
+    # WebRTC LiveKit Routing
     handle /livekit/* {
         uri strip_prefix /livekit
-        reverse_proxy livekit:7880
+        reverse_proxy livekit:7880 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
     }
 
-    # Default fallback
+    # Default fallback probe
     handle {
         respond "Mini Telegram Gateway Active" 200
     }

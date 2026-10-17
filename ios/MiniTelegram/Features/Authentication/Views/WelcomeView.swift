@@ -3,13 +3,10 @@ import SwiftUI
 public struct WelcomeView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var localization = LocalizationManager.shared
+    @StateObject private var viewModel = AuthViewModel()
 
-    @State private var inviteCode: String = ""
-    @State private var isVerifying: Bool = false
-    @State private var errorMessage: String?
     @State private var isLoginMode: Bool = false
-    @State private var username: String = ""
-    @State private var password: String = ""
+    @State private var navigateToSetup: Bool = false
 
     public init() {}
 
@@ -76,7 +73,7 @@ public struct WelcomeView: View {
 
                 // Form Section
                 VStack(spacing: AppSpacing.md) {
-                    if let errorMessage = errorMessage {
+                    if let errorMessage = viewModel.errorMessage {
                         HStack {
                             Image(systemName: "exclamationmark.circle.fill")
                                 .foregroundColor(AppColors.statusError)
@@ -91,27 +88,29 @@ public struct WelcomeView: View {
                     if isLoginMode {
                         CustomTextField(
                             placeholder: L("auth_username_placeholder"),
-                            text: $username,
+                            text: $viewModel.username,
                             autocapitalization: .never
                         )
 
                         CustomTextField(
                             placeholder: L("auth_password_placeholder"),
-                            text: $password,
+                            text: $viewModel.password,
                             isSecure: true
                         )
 
                         PrimaryButton(
                             title: L("auth_login_button"),
                             icon: "arrow.right",
-                            isLoading: isVerifying
+                            isLoading: viewModel.isLoading
                         ) {
-                            handleLogin()
+                            Task {
+                                _ = await viewModel.login(appState: appState)
+                            }
                         }
 
                         Button(action: {
                             isLoginMode = false
-                            errorMessage = nil
+                            viewModel.errorMessage = nil
                         }) {
                             Text(L("auth_need_account"))
                                 .font(AppTypography.subheadline)
@@ -122,21 +121,26 @@ public struct WelcomeView: View {
                     } else {
                         CustomTextField(
                             placeholder: L("auth_invite_code_placeholder"),
-                            text: $inviteCode,
+                            text: $viewModel.inviteCode,
                             autocapitalization: .never
                         )
 
                         PrimaryButton(
                             title: L("auth_verify_invite_button"),
                             icon: "checkmark.shield.fill",
-                            isLoading: isVerifying
+                            isLoading: viewModel.isLoading
                         ) {
-                            handleVerifyInvite()
+                            Task {
+                                let success = await viewModel.validateInvitation(code: viewModel.inviteCode)
+                                if success {
+                                    navigateToSetup = true
+                                }
+                            }
                         }
 
                         Button(action: {
                             isLoginMode = true
-                            errorMessage = nil
+                            viewModel.errorMessage = nil
                         }) {
                             Text(L("auth_already_have_account"))
                                 .font(AppTypography.subheadline)
@@ -149,44 +153,9 @@ public struct WelcomeView: View {
                 .padding(.bottom, AppSpacing.xl)
             }
             .background(AppColors.background)
-        }
-    }
-
-    private func handleVerifyInvite() {
-        guard !inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = L("auth_invitation_invalid")
-            return
-        }
-        isVerifying = true
-        errorMessage = nil
-
-        // Simulated validation gate for Phase 1 (replaced in Phase 2 with API call)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            isVerifying = false
-            if inviteCode.starts(with: "invite_") {
-                // Provision initial profile
-                let user = UserProfile(id: UUID().uuidString, username: "member", displayName: "Team Member", role: "member")
-                let device = DeviceProfile(id: UUID().uuidString, deviceName: "iPhone", identityKeyPub: "key_mock")
-                appState.setAuthenticated(user: user, device: device)
-            } else {
-                errorMessage = L("auth_invitation_invalid")
+            .navigationDestination(isPresented: $navigateToSetup) {
+                AccountSetupView(viewModel: viewModel)
             }
-        }
-    }
-
-    private func handleLogin() {
-        guard !username.isEmpty, !password.isEmpty else {
-            errorMessage = L("error_invalid_credentials")
-            return
-        }
-        isVerifying = true
-        errorMessage = nil
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            isVerifying = false
-            let user = UserProfile(id: UUID().uuidString, username: username, displayName: username, role: "member")
-            let device = DeviceProfile(id: UUID().uuidString, deviceName: "iPhone", identityKeyPub: "key_mock")
-            appState.setAuthenticated(user: user, device: device)
         }
     }
 }

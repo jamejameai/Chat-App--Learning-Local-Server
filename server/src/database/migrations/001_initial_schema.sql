@@ -31,7 +31,7 @@ CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
 CREATE TABLE IF NOT EXISTS invitations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code VARCHAR(64) NOT NULL UNIQUE,
-    created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_by_user_id UUID REFERENCES users(id) ON DELETE CASCADE,
     used_by_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
     role VARCHAR(16) NOT NULL DEFAULT 'member' CHECK (role IN ('superadmin', 'member')),
     expires_at TIMESTAMPTZ NOT NULL,

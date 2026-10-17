@@ -8,7 +8,7 @@ public enum AppTab: Hashable {
     case settings
 }
 
-public struct UserProfile: Codable, Equatable {
+public struct UserProfile: Codable, Equatable, Sendable {
     public let id: String
     public let username: String
     public let displayName: String
@@ -24,7 +24,7 @@ public struct UserProfile: Codable, Equatable {
     }
 }
 
-public struct DeviceProfile: Codable, Equatable {
+public struct DeviceProfile: Codable, Equatable, Sendable {
     public let id: String
     public let deviceName: String
     public let identityKeyPub: String

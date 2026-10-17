@@ -33,7 +33,7 @@ public struct MainTabView: View {
             .tag(AppTab.community)
 
             NavigationStack {
-                SettingsPlaceholderView()
+                SettingsView()
             }
             .tabItem {
                 Label(L("tab_settings"), systemImage: "gearshape.fill")

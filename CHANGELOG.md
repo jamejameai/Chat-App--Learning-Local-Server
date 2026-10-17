@@ -44,3 +44,29 @@ All notable changes to the Mini Telegram project are documented in this file.
 - Infrastructure:
   - Turnkey `infrastructure/docker-compose.yml` for PostgreSQL 16, Caddy 2, LiveKit SFU, and Coturn TURN relay.
   - `infrastructure/reverse-proxy/Caddyfile`, `infrastructure/coturn/turnserver.conf`, `infrastructure/livekit.yaml`.
+
+## [Phase 2] - 2026-10-17
+### Added
+- Identity & Invitation-Only Access Subsystem:
+  - Backend invitation service (`/invitations/validate`, `/invitations`, `/invitations/:id/revoke`) with role validation (`superadmin`, `member`) and single-use expiry tracking.
+  - Multi-device registration endpoint (`/devices/register`, `/devices/list`, `/devices/:id`) storing identity public keys, signed prekeys, and one-time prekeys.
+  - Device revocation endpoint with session invalidation and audit trail.
+  - Database bootstrap migration `002_bootstrap_superadmin.sql` for initial super-admin deployment.
+  - iOS `AuthViewModel` orchestrating invitation validation, biometric/keychain integration, and authenticated sessions.
+  - iOS `AccountSetupView` with animated cryptographic key generation and role badge presentation.
+  - iOS `SettingsView` displaying user profile, active device fingerprint, E2EE verification status, and biometric lock.
+  - iOS `DeviceManagementView` for active device inspection and remote revocation with user confirmation.
+  - iOS `SuperAdminInvitationsView` with code generation, role selector, expiry configuration, and clipboard export.
+  - Unit Tests: `AuthService` test suite verifying invitation rejection (expired, revoked, redeemed, nonexistent) and password validation (10/10 tests passed).
+
+## [Phase 3] - 2026-10-17
+### Added
+- End-to-End Encryption (E2EE) Cryptographic Foundation:
+  - `CryptoIdentityService`: Curve25519 DH key generation, Ed25519 signing key generation, signed prekeys with cryptographic signature verification, and 50 one-time prekeys (OPKs) batch generation.
+  - `DoubleRatchetEngine`: Full Signal Double Ratchet protocol implementation including KDF-RK, KDF-CK, symmetric ratchet, Diffie-Hellman ratchet step, and out-of-order skipped message key recovery cache (up to 2,000 keys).
+  - `X3DHEngine`: Extended Triple Diffie-Hellman key agreement (DH1, DH2, DH3, optional DH4) deriving 256-bit master shared secrets with Ed25519 identity signature verification.
+  - `SenderKeysEngine`: Sender Key protocol for multi-party group encryption with forward secrecy and deterministic member re-keying on membership revocation.
+  - `FileEncryptionService`: Zero-knowledge streaming file encryption using AES-256-GCM and SHA-256 integrity checksums for encrypted attachment transfer.
+  - `KeychainManager`: Hardware-backed Secure Enclave / iOS Keychain wrapper for persistent private keys, biometric access control, and token management.
+  - `BiometricAuthManager`: LocalAuthentication framework integration supporting Face ID, Touch ID, and device passcode fallbacks.
+  - Verified Cryptographic Unit Tests: Full passing test suite (`DoubleRatchetTests`, `X3DHTests`, `SenderKeysTests`, `CryptoIdentityTests`, `FileEncryptionTests`) executing 16 tests with 0 failures on iOS Simulator.

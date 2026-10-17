@@ -1,0 +1,53 @@
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+
+# Environment & Secrets (NEVER COMMIT PRODUCTION CREDENTIALS)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.p8
+*.p12
+
+# Node & NestJS
+node_modules/
+dist/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.turbo
+
+# Xcode & Swift
+DerivedData/
+*.xcuserstate
+project.xcworkspace/xcuserdata/
+*.xcuserdatad/
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+.build/
+Packages/
+Package.pins
+Package.resolved
+
+# Fastlane
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots
+fastlane/test_output
+
+# Docker persistent data volumes (local)
+infrastructure/data/
+postgres-data/
+minio-data/
+uploads/
+coturn-data/
+scratch/

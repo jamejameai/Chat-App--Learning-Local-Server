@@ -1,0 +1,227 @@
+# ============================================================================
+# Mini Telegram — Production Docker Compose Configuration
+# ============================================================================
+# Features:
+# - Resource limits (CPU / Memory) on all micro-services
+# - Log rotation (max-size: 20m, max-file: 5) to prevent disk exhaustion
+# - Native Docker health checks on all dependent services
+# - Graceful shutdown and 'always' restart policies
+# - Isolated internal bridge network with zero unauthorized host exposures
+# ============================================================================
+
+version: '3.8'
+
+services:
+  # --------------------------------------------------------------------------
+  # Reverse Proxy: Caddy 2 (TLS 1.3 Automatic HTTPS & Edge Routing)
+  # --------------------------------------------------------------------------
+  reverse-proxy:
+    image: caddy:2.8.4-alpine
+    container_name: minitelegram-reverse-proxy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./reverse-proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - minitelegram-net
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:2019/metrics || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # --------------------------------------------------------------------------
+  # Backend API Monolith: NestJS E2EE Server & WebSocket Gateway
+  # --------------------------------------------------------------------------
+  backend:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: minitelegram-backend
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-minitelegram}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in production .env}
+      - DB_NAME=${DB_NAME:-minitelegram_db}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET must be set in production .env}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set in production .env}
+      - STORAGE_DRIVER=local
+      - STORAGE_LOCAL_PATH=/uploads
+      - LIVEKIT_URL=http://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-minitelegram-key}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET must be set in production .env}
+    volumes:
+      - encrypted-uploads:/uploads
+    networks:
+      - minitelegram-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:3000/api/v1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2048M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # --------------------------------------------------------------------------
+  # Database: PostgreSQL 16 Alpine
+  # --------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: minitelegram-postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=${DB_USER:-minitelegram}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in production .env}
+      - POSTGRES_DB=${DB_NAME:-minitelegram_db}
+    command: >
+      postgres
+        -c shared_buffers=256MB
+        -c effective_cache_size=768MB
+        -c work_mem=16MB
+        -c maintenance_work_mem=64MB
+        -c min_wal_size=100MB
+        -c max_wal_size=1GB
+        -c checkpoint_completion_target=0.9
+        -c wal_buffers=16MB
+        -c default_statistics_target=100
+        -c random_page_cost=1.1
+        -c effective_io_concurrency=200
+        -c max_connections=100
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-minitelegram} -d ${DB_NAME:-minitelegram_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - minitelegram-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1536M
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # --------------------------------------------------------------------------
+  # WebRTC Selective Forwarding Unit (SFU): LiveKit
+  # --------------------------------------------------------------------------
+  livekit:
+    image: livekit/livekit-server:v1.7.2
+    container_name: minitelegram-livekit
+    restart: always
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50050:50000-50050/udp"
+    networks:
+      - minitelegram-net
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 1024M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+  # --------------------------------------------------------------------------
+  # STUN / TURN NAT Traversal Relay: Coturn
+  # --------------------------------------------------------------------------
+  coturn:
+    image: coturn/coturn:4.6.2-alpine
+    container_name: minitelegram-coturn
+    restart: always
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-49200:49152-49200/udp"
+    networks:
+      - minitelegram-net
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.2'
+          memory: 128M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+networks:
+  minitelegram-net:
+    driver: bridge
+    name: minitelegram-prod-net
+
+volumes:
+  postgres-data:
+    name: minitelegram-postgres-data
+  encrypted-uploads:
+    name: minitelegram-encrypted-uploads
+  caddy-data:
+    name: minitelegram-caddy-data
+  caddy-config:
+    name: minitelegram-caddy-config

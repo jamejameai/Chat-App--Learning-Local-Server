@@ -146,5 +146,19 @@ All notable changes to the Mini Telegram project are documented in this file.
   - `NotificationAndSyncTests`: 3 new unit tests verifying zero-knowledge payload invariants (absence of plaintext, presence of localization keys and crypto fields), offline remote push message decryption and local persistence, and background task identifier registration.
   - iOS test suite now encompasses 35 passing tests with 0 failures; backend test suite 10/10 passing tests with 0 failures.
 
+## [Phase 8] - 2026-10-17
+### Added
+- Production Operational Readiness & Container Hardening:
+  - Multi-stage hardened `server/Dockerfile` with minimal Alpine image, non-root `node` execution, `tini` process reaper, and container health probes.
+  - Production Compose configuration `infrastructure/docker-compose.prod.yml` featuring resource limits (CPUs & memory quotas for backend, postgres, livekit, caddy, coturn), log-rotation bounds (max-size: 20m, max-file: 5), tuned PostgreSQL 16 engine configuration, and automated container recovery policies (`restart: always`).
+- Automated Backup & Disaster Recovery Automation:
+  - `scripts/backup.sh`: full database (`pg_dump` compressed with gzip-9) and encrypted attachments (`uploads.tar.gz`) backup with cryptographic SHA-256 integrity manifest (`SHA256SUMS.txt`), optional AES-256-CBC PBKDF2 client-side encryption, and retention pruning (default 14 days).
+  - `scripts/restore.sh`: complete disaster recovery restore script supporting AES-256 archive decryption, SHA-256 bit-rot verification, PostgreSQL table reconstruction, encrypted attachments extraction, and post-restoration database health verification.
+  - `scripts/cron_backup.sh`: cron automation runner with structured timestamp logging to `/var/log/minitelegram-backup.log`.
+  - `scripts/test_backup_restore.sh`: automated 5-step test suite verifying end-to-end backup generation, SHA-256 integrity, tamper rejection, OpenSSL PBKDF2 encryption/decryption, and byte-for-byte data restoration fidelity.
+- Production Operations & Security Manual:
+  - `docs/OPERATIONS.md`: day-1 home server deployment runbook, resource management and database tuning, zero-downtime maintenance and migration instructions, backup and disaster recovery schedules, monitoring and health check guides, security incident response runbook (device revocation, group re-keying, emergency lockdown), and WebRTC/NAT traversal troubleshooting.
+
+
 
 

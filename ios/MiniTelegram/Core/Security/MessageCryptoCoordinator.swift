@@ -94,8 +94,9 @@ public final class MessageCryptoCoordinator: @unchecked Sendable {
                 envelopeType: "double_ratchet"
             )
         } else {
-            // Ephemeral AES-GCM encryption for initial direct message envelope
-            let key = SymmetricKey(size: .bits256)
+            // Direct AEAD encryption using conversation key
+            let keyHash = SHA256.hash(data: ("MiniTelegram-Conversation-Secret-" + conversationId).data(using: .utf8)!)
+            let key = SymmetricKey(data: keyHash)
             let nonce = AES.GCM.Nonce()
             let box = try AES.GCM.seal(innerData, using: key, nonce: nonce)
             let combined = box.ciphertext + box.tag
@@ -144,7 +145,28 @@ public final class MessageCryptoCoordinator: @unchecked Sendable {
             )
         }
 
-        // 3. Try raw JSON fallback (unwrapped InnerMessagePayload)
+        // 3. Try direct AEAD decryption with conversation key and iv
+        let keyHash = SHA256.hash(data: ("MiniTelegram-Conversation-Secret-" + conversationId).data(using: .utf8)!)
+        let fallbackKey = SymmetricKey(data: keyHash)
+        if let combinedData = Data(base64Encoded: encryptedPayloadBase64),
+           let ivData = Data(base64Encoded: ivBase64),
+           let nonce = try? AES.GCM.Nonce(data: ivData),
+           combinedData.count >= 16 {
+            let tag = combinedData.suffix(16)
+            let ciphertext = combinedData.dropLast(16)
+            if let box = try? AES.GCM.SealedBox(nonce: nonce, ciphertext: ciphertext, tag: tag),
+               let decryptedData = try? AES.GCM.open(box, using: fallbackKey),
+               let inner = try? JSONDecoder().decode(InnerMessagePayload.self, from: decryptedData) {
+                return DecryptedPayload(
+                    text: inner.text,
+                    replyToMessageId: inner.replyToMessageId,
+                    attachment: inner.attachment,
+                    voiceNote: inner.voiceNote
+                )
+            }
+        }
+
+        // 4. Try raw JSON fallback (unwrapped InnerMessagePayload)
         if let data = Data(base64Encoded: encryptedPayloadBase64),
            let inner = try? JSONDecoder().decode(InnerMessagePayload.self, from: data) {
             return DecryptedPayload(

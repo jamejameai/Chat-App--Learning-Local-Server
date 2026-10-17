@@ -133,4 +133,18 @@ All notable changes to the Mini Telegram project are documented in this file.
 - Automated Test Suite:
   - `CallingTests`: 4 unit tests verifying `CallItem` Codable serialization, deterministic FrameCryptor key derivation, 4-emoji fingerprint uniqueness, SFrame media frame encryption/decryption, and `CallManager` state sequence. Total iOS suite: 32/32 tests passing.
 
+## [Phase 7] - 2026-10-17
+### Added
+- Zero-Knowledge APNs Push Notification Subsystem:
+  - Backend `notifications` module (`POST /notifications/register-token`, `DELETE /notifications/unregister-token`, `POST /notifications/dispatch`) with PostgreSQL device storage in `notification_devices`.
+  - Privacy-preserving payload generator ensuring Apple APNs never receives plaintext message content, sender usernames, or encryption keys: sends standard iOS localization keys (`PUSH_NEW_MESSAGE`, `PUSH_MESSAGE_BODY`) alongside Double Ratchet / Sender Key encrypted payload envelopes (`encrypted_payload`, `iv`, `envelope_type`, `sequence_id`).
+  - iOS `PushNotificationManager`: APNs device token registration, notification permissions request, intercepting encrypted push notification payloads, decrypting offline messages via `MessageCryptoCoordinator`, storing directly into `LocalDatabaseManager`, and scheduling local banner notifications.
+- Background Catch-Up Synchronization:
+  - iOS `BackgroundSyncManager`: integration with Apple's `BGTaskScheduler` (`com.minitelegram.background-sync`) for background catch-up synchronization across conversations while the application is suspended.
+  - Asynchronous thread-safe execution with actor isolation and `@unchecked Sendable` conformance.
+- Automated Test Suite:
+  - `NotificationAndSyncTests`: 3 new unit tests verifying zero-knowledge payload invariants (absence of plaintext, presence of localization keys and crypto fields), offline remote push message decryption and local persistence, and background task identifier registration.
+  - iOS test suite now encompasses 35 passing tests with 0 failures; backend test suite 10/10 passing tests with 0 failures.
+
+
 

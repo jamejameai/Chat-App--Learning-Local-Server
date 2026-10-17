@@ -1,0 +1,137 @@
+/* English Localization for Mini Telegram */
+
+/* Navigation & Tabs */
+"tab_chats" = "Chats";
+"tab_calls" = "Calls";
+"tab_community" = "Groups";
+"tab_settings" = "Settings";
+
+/* Common Actions */
+"action_cancel" = "Cancel";
+"action_confirm" = "Confirm";
+"action_save" = "Save";
+"action_delete" = "Delete";
+"action_edit" = "Edit";
+"action_done" = "Done";
+"action_continue" = "Continue";
+"action_retry" = "Retry";
+"action_close" = "Close";
+"action_search" = "Search";
+"action_copy" = "Copy";
+"action_share" = "Share";
+
+/* Onboarding & Authentication */
+"auth_welcome_title" = "Mini Telegram";
+"auth_welcome_subtitle" = "Private, end-to-end encrypted team communication";
+"auth_enter_invite_code" = "Enter Invitation Code";
+"auth_invite_code_placeholder" = "e.g. invite_...";
+"auth_verify_invite_button" = "Verify Invitation";
+"auth_invitation_valid" = "Invitation Verified";
+"auth_invitation_invalid" = "This invitation is invalid or has expired";
+"auth_create_account" = "Create Account";
+"auth_username" = "Username";
+"auth_username_placeholder" = "Choose a unique username";
+"auth_display_name" = "Display Name";
+"auth_display_name_placeholder" = "Your name or callsign";
+"auth_password" = "Password";
+"auth_password_placeholder" = "Choose a secure password";
+"auth_login_title" = "Log In";
+"auth_login_button" = "Log In";
+"auth_already_have_account" = "Already have an account? Log In";
+"auth_need_account" = "Have an invite code? Register";
+"auth_generating_keys" = "Generating cryptographic identity keys...";
+"auth_device_registered" = "Device registered securely";
+
+/* Chats & Messaging */
+"chats_title" = "Chats";
+"chats_empty_title" = "No Conversations Yet";
+"chats_empty_description" = "When you start or receive a conversation, it will appear here securely.";
+"chats_search_placeholder" = "Search messages and contacts...";
+"chat_composer_placeholder" = "Message...";
+"chat_e2ee_badge" = "End-to-End Encrypted";
+"chat_typing_single" = "%@ is typing...";
+"chat_typing_multiple" = "%@ people are typing...";
+"chat_online" = "online";
+"chat_offline" = "offline";
+"chat_last_seen" = "last seen %@";
+"chat_replying_to" = "Replying to %@";
+"chat_message_status_sending" = "Sending...";
+"chat_message_status_sent" = "Sent";
+"chat_message_status_delivered" = "Delivered";
+"chat_message_status_read" = "Read";
+"chat_message_status_failed" = "Failed to send";
+"chat_voice_hold_to_record" = "Hold to record, release to send";
+"chat_voice_recording" = "Recording... %@";
+"chat_voice_slide_to_cancel" = "Slide to cancel";
+
+/* Groups */
+"groups_title" = "Groups & Channels";
+"groups_new_group" = "New Group";
+"groups_new_channel" = "New Channel";
+"groups_name_placeholder" = "Group name";
+"groups_members_count" = "%d members";
+"groups_role_owner" = "Owner";
+"groups_role_admin" = "Admin";
+"groups_role_member" = "Member";
+"groups_rekeying_notice" = "Group cryptographic state updated";
+
+/* Calls */
+"calls_title" = "Calls";
+"calls_empty_title" = "No Call History";
+"calls_empty_description" = "Your private voice and video calls will be logged here.";
+"calls_new_call" = "Start Call";
+"calls_incoming_voice" = "Incoming Audio Call";
+"calls_incoming_video" = "Incoming Video Call";
+"calls_active_connecting" = "Connecting...";
+"calls_active_connected" = "Connected";
+"calls_active_reconnecting" = "Reconnecting...";
+"calls_action_mute" = "Mute";
+"calls_action_unmute" = "Unmute";
+"calls_action_speaker" = "Speaker";
+"calls_action_camera_on" = "Video On";
+"calls_action_camera_off" = "Video Off";
+"calls_action_switch_camera" = "Flip Camera";
+"calls_action_end" = "End Call";
+"calls_action_accept" = "Accept";
+"calls_action_decline" = "Decline";
+"calls_duration" = "Call Duration: %@";
+"calls_e2ee_notice" = "Call media is end-to-end encrypted";
+
+/* Settings */
+"settings_title" = "Settings";
+"settings_section_profile" = "Profile";
+"settings_section_security" = "Security & Privacy";
+"settings_section_preferences" = "Preferences";
+"settings_section_devices" = "Devices & Keys";
+"settings_section_admin" = "Super-Admin Panel";
+"settings_language" = "Language";
+"settings_language_en" = "English";
+"settings_language_km" = "Khmer (ភាសាខ្មែរ)";
+"settings_biometric_lock" = "Face ID / Touch ID Unlock";
+"settings_biometric_reason" = "Unlock Mini Telegram to access your encrypted conversations";
+"settings_key_fingerprint" = "Identity Key Fingerprint";
+"settings_active_devices" = "Active Devices (%d)";
+"settings_revoke_device" = "Revoke Device";
+"settings_revoke_device_confirm" = "Are you sure you want to revoke this device? It will be disconnected immediately.";
+"settings_logout" = "Log Out";
+"settings_logout_confirm" = "Logging out will remove local decrypted caches. Your account can be re-accessed on this device.";
+"settings_app_version" = "Version %@ (%@)";
+
+/* Admin */
+"admin_title" = "Super-Admin Controls";
+"admin_invitations_title" = "Manage Invitations";
+"admin_create_invitation" = "Generate Invitation Code";
+"admin_code_generated" = "New invitation code generated";
+"admin_revoke_invitation" = "Revoke Invitation";
+"admin_members_title" = "Team Members";
+"admin_suspend_member" = "Suspend Account";
+"admin_system_health" = "Server Health";
+
+/* Errors & States */
+"state_loading" = "Loading...";
+"state_error_title" = "Something Went Wrong";
+"state_offline_notice" = "Offline. Reconnecting when network becomes available.";
+"error_network_unavailable" = "Network connection unavailable";
+"error_invalid_credentials" = "Invalid username or password";
+"error_session_expired" = "Your session has expired. Please log in again.";
+"error_crypto_failure" = "Cryptographic operation failed";

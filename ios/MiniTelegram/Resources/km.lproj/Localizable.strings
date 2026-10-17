@@ -1,0 +1,137 @@
+/* Khmer (ភាសាខ្មែរ) Localization for Mini Telegram */
+
+/* Navigation & Tabs */
+"tab_chats" = "ការសន្ទនា";
+"tab_calls" = "ការហៅ";
+"tab_community" = "ក្រុម";
+"tab_settings" = "ការកំណត់";
+
+/* Common Actions */
+"action_cancel" = "បោះបង់";
+"action_confirm" = "បញ្ជាក់";
+"action_save" = "រក្សាទុក";
+"action_delete" = "លុប";
+"action_edit" = "កែសម្រួល";
+"action_done" = "រួចរាល់";
+"action_continue" = "បន្ត";
+"action_retry" = "ព្យាយាមម្តងទៀត";
+"action_close" = "បិទ";
+"action_search" = "ស្វែងរក";
+"action_copy" = "ចម្លង";
+"action_share" = "ចែករំលែក";
+
+/* Onboarding & Authentication */
+"auth_welcome_title" = "Mini Telegram";
+"auth_welcome_subtitle" = "ប្រព័ន្ធទំនាក់ទំនងក្រុមផ្ទាល់ខ្លួន សុវត្ថិភាពកម្រិតខ្ពស់ E2EE";
+"auth_enter_invite_code" = "បញ្ចូលលេខកូដអញ្ជើញ";
+"auth_invite_code_placeholder" = "ឧ. invite_...";
+"auth_verify_invite_button" = "ផ្ទៀងផ្ទាត់ការអញ្ជើញ";
+"auth_invitation_valid" = "ការអញ្ជើញត្រឹមត្រូវ";
+"auth_invitation_invalid" = "លេខកូដអញ្ជើញមិនត្រឹមត្រូវ ឬផុតកំណត់";
+"auth_create_account" = "បង្កើតគណនី";
+"auth_username" = "ឈ្មោះអ្នកប្រើប្រាស់";
+"auth_username_placeholder" = "ជ្រើសរើសឈ្មោះគណនី";
+"auth_display_name" = "ឈ្មោះបង្ហាញ";
+"auth_display_name_placeholder" = "ឈ្មោះរបស់អ្នក";
+"auth_password" = "ពាក្យសម្ងាត់";
+"auth_password_placeholder" = "ជ្រើសរើសពាក្យសម្ងាត់សុវត្ថិភាព";
+"auth_login_title" = "ចូលគណនី";
+"auth_login_button" = "ចូលគណនី";
+"auth_already_have_account" = "មានគណនីរួចហើយ? ចូលគណនី";
+"auth_need_account" = "មានលេខកូដអញ្ជើញ? ចុះឈ្មោះ";
+"auth_generating_keys" = "កំពុងបង្កើតកូនសោសម្ងាត់កូដនីយកម្ម...";
+"auth_device_registered" = "ឧបករណ៍ត្រូវបានចុះឈ្មោះដោយសុវត្ថិភាព";
+
+/* Chats & Messaging */
+"chats_title" = "ការសន្ទនា";
+"chats_empty_title" = "មិនទាន់មានការសន្ទនានៅឡើយទេ";
+"chats_empty_description" = "នៅពេលអ្នកចាប់ផ្តើមការសន្ទនា សារនឹងបង្ហាញនៅទីនេះដោយសុវត្ថិភាព។";
+"chats_search_placeholder" = "ស្វែងរកសារ និងទំនាក់ទំនង...";
+"chat_composer_placeholder" = "សរសេរសារ...";
+"chat_e2ee_badge" = "បានអ៊ិនគ្រីប E2EE";
+"chat_typing_single" = "%@ កំពុងវាយ...";
+"chat_typing_multiple" = "មនុស្ស %@ នាក់កំពុងវាយ...";
+"chat_online" = "អនឡាញ";
+"chat_offline" = "ក្រៅបណ្តាញ";
+"chat_last_seen" = "ឃើញចុងក្រោយ %@";
+"chat_replying_to" = "ឆ្លើយតបទៅ %@";
+"chat_message_status_sending" = "កំពុងផ្ញើ...";
+"chat_message_status_sent" = "បានផ្ញើ";
+"chat_message_status_delivered" = "បានបញ្ជូន";
+"chat_message_status_read" = "បានអាន";
+"chat_message_status_failed" = "ការផ្ញើបានបរាជ័យ";
+"chat_voice_hold_to_record" = "សង្កត់ដើម្បីថត បញ្ចេញដើម្បីផ្ញើ";
+"chat_voice_recording" = "កំពុងថតសំឡេង... %@";
+"chat_voice_slide_to_cancel" = "អូសដើម្បីបោះបង់";
+
+/* Groups */
+"groups_title" = "ក្រុម និងប៉ុស្តិ៍";
+"groups_new_group" = "បង្កើតក្រុមថ្មី";
+"groups_new_channel" = "បង្កើតប៉ុស្តិ៍ថ្មី";
+"groups_name_placeholder" = "ឈ្មោះក្រុម";
+"groups_members_count" = "សមាជិក %d នាក់";
+"groups_role_owner" = "ម្ចាស់";
+"groups_role_admin" = "អ្នកគ្រប់គ្រង";
+"groups_role_member" = "សមាជិក";
+"groups_rekeying_notice" = "ស្ថានភាពកូដសម្ងាត់ក្រុមត្រូវបានធ្វើបច្ចុប្បន្នភាព";
+
+/* Calls */
+"calls_title" = "ការហៅ";
+"calls_empty_title" = "មិនមានប្រវត្តិការហៅទេ";
+"calls_empty_description" = "ការហៅជាសំឡេង និងវីដេអូឯកជនរបស់អ្នកនឹងត្រូវបានកត់ត្រានៅទីនេះ។";
+"calls_new_call" = "ចាប់ផ្តើមការហៅ";
+"calls_incoming_voice" = "ការហៅជាសំឡេងចូល";
+"calls_incoming_video" = "ការហៅជាវីដេអូចូល";
+"calls_active_connecting" = "កំពុងភ្ជាប់...";
+"calls_active_connected" = "បានភ្ជាប់";
+"calls_active_reconnecting" = "កំពុងភ្ជាប់ឡើងវិញ...";
+"calls_action_mute" = "បិទសំឡេង";
+"calls_action_unmute" = "បើកសំឡេង";
+"calls_action_speaker" = "ឧបករណ៍បំពងសំឡេង";
+"calls_action_camera_on" = "បើកកាមេរ៉ា";
+"calls_action_camera_off" = "បិទកាមេរ៉ា";
+"calls_action_switch_camera" = "ប្តូរកាមេរ៉ា";
+"calls_action_end" = "បញ្ចប់ការហៅ";
+"calls_action_accept" = "ទទួល";
+"calls_action_decline" = "បដិសេធ";
+"calls_duration" = "រយៈពេលនៃការហៅ: %@";
+"calls_e2ee_notice" = "ការហៅត្រូវបានអ៊ិនគ្រីប E2EE";
+
+/* Settings */
+"settings_title" = "ការកំណត់";
+"settings_section_profile" = "គណនីផ្ទាល់ខ្លួន";
+"settings_section_security" = "សុវត្ថិភាព និងឯកជនភាព";
+"settings_section_preferences" = "ចំណូលចិត្ត";
+"settings_section_devices" = "ឧបករណ៍ និងកូនសោសម្ងាត់";
+"settings_section_admin" = "ផ្ទាំងគ្រប់គ្រង Super-Admin";
+"settings_language" = "ភាសា (Language)";
+"settings_language_en" = "English (អង់គ្លេស)";
+"settings_language_km" = "ភាសាខ្មែរ (Khmer)";
+"settings_biometric_lock" = "ដោះសោដោយ Face ID / Touch ID";
+"settings_biometric_reason" = "ដោះសោ Mini Telegram ដើម្បីចូលដំណើរការសារសម្ងាត់របស់អ្នក";
+"settings_key_fingerprint" = "ស្នាមម្រាមដៃកូនសោអត្តសញ្ញាណ";
+"settings_active_devices" = "ឧបករណ៍សកម្ម (%d)";
+"settings_revoke_device" = "ដកហូតឧបករណ៍";
+"settings_revoke_device_confirm" = "តើអ្នកប្រាកដជាចង់ដកហូតឧបករណ៍នេះមែនទេ? វានឹងត្រូវកាត់ផ្តាច់ភ្លាមៗ។";
+"settings_logout" = "ចាកចេញពីគណនី";
+"settings_logout_confirm" = "ការចាកចេញនឹងសម្អាតទិន្នន័យបណ្តោះអាសន្ននៅលើឧបករណ៍នេះ។";
+"settings_app_version" = "កំណែ %@ (%@)";
+
+/* Admin */
+"admin_title" = "ការគ្រប់គ្រងជាន់ខ្ពស់";
+"admin_invitations_title" = "គ្រប់គ្រងការអញ្ជើញ";
+"admin_create_invitation" = "បង្កើតលេខកូដអញ្ជើញ";
+"admin_code_generated" = "លេខកូដអញ្ជើញថ្មីត្រូវបានបង្កើត";
+"admin_revoke_invitation" = "ដកហូតការអញ្ជើញ";
+"admin_members_title" = "សមាជិកក្រុម";
+"admin_suspend_member" = "ផ្អាកគណនី";
+"admin_system_health" = "ស្ថានភាពម៉ាស៊ីនបម្រើ";
+
+/* Errors & States */
+"state_loading" = "កំពុងផ្ទុក...";
+"state_error_title" = "មានបញ្ហាមួយបានកើតឡើង";
+"state_offline_notice" = "គ្មានបណ្តាញ។ នឹងភ្ជាប់ឡើងវិញដោយស្វ័យប្រវត្តិ។";
+"error_network_unavailable" = "មិនមានការតភ្ជាប់បណ្តាញទេ";
+"error_invalid_credentials" = "ឈ្មោះអ្នកប្រើប្រាស់ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ";
+"error_session_expired" = "វគ្គរបស់អ្នកបានផុតកំណត់។ សូមចូលគណនីម្តងទៀត។";
+"error_crypto_failure" = "ប្រតិបត្តិការកូដនីយកម្មបានបរាជ័យ";

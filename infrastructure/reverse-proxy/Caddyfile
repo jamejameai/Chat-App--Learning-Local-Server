@@ -1,0 +1,38 @@
+{
+    # Global options
+    auto_https off
+}
+
+:80 {
+    # Logging
+    log {
+        output stdout
+        format console
+    }
+
+    # API and WebSocket routing
+    handle /socket.io/* {
+        reverse_proxy backend:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    handle /api/* {
+        reverse_proxy backend:3000 {
+            header_up Host {host}
+            header_up X-Real-IP {remote_host}
+        }
+    }
+
+    # LiveKit HTTP and WebSocket routing
+    handle /livekit/* {
+        uri strip_prefix /livekit
+        reverse_proxy livekit:7880
+    }
+
+    # Default fallback
+    handle {
+        respond "Mini Telegram Gateway Active" 200
+    }
+}

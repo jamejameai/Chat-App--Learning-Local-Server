@@ -1,0 +1,118 @@
+services:
+  # ============================================================================
+  # Reverse Proxy (Caddy 2 - Auto HTTPS / TLS 1.3)
+  # ============================================================================
+  reverse-proxy:
+    image: caddy:2.8.4-alpine
+    container_name: minitelegram-reverse-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./reverse-proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      - minitelegram-net
+    depends_on:
+      - backend
+
+  # ============================================================================
+  # Mini Telegram Backend Monolith (NestJS API & WebSockets)
+  # ============================================================================
+  backend:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: minitelegram-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-minitelegram}
+      - DB_PASSWORD=${DB_PASSWORD:-change_this_to_a_secure_database_password}
+      - DB_NAME=${DB_NAME:-minitelegram_db}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:-replace_with_a_64_char_cryptographically_secure_random_string_access}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-replace_with_a_64_char_cryptographically_secure_random_string_refresh}
+      - STORAGE_DRIVER=local
+      - STORAGE_LOCAL_PATH=/uploads
+      - LIVEKIT_URL=http://livekit:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY:-devkey}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET:-secret_livekit_key_replace_for_production}
+    volumes:
+      - encrypted-uploads:/uploads
+    networks:
+      - minitelegram-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # ============================================================================
+  # PostgreSQL 16 (Relational DB & Ciphertext Store)
+  # ============================================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: minitelegram-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DB_USER:-minitelegram}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-change_this_to_a_secure_database_password}
+      - POSTGRES_DB=${DB_NAME:-minitelegram_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-minitelegram} -d ${DB_NAME:-minitelegram_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - minitelegram-net
+    # Postgres is intentionally NOT exposed to host ports for zero-trust security
+
+  # ============================================================================
+  # LiveKit SFU (WebRTC Audio/Video Router)
+  # ============================================================================
+  livekit:
+    image: livekit/livekit-server:v1.7.2
+    container_name: minitelegram-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50050:50000-50050/udp"
+    networks:
+      - minitelegram-net
+
+  # ============================================================================
+  # Coturn STUN / TURN Relay
+  # ============================================================================
+  coturn:
+    image: coturn/coturn:4.6.2-alpine
+    container_name: minitelegram-coturn
+    restart: unless-stopped
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "5349:5349/tcp"
+      - "5349:5349/udp"
+      - "49152-49200:49152-49200/udp"
+    networks:
+      - minitelegram-net
+
+networks:
+  minitelegram-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  encrypted-uploads:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,35 @@
+name: MiniTelegram
+options:
+  bundleIdPrefix: com.minitelegram
+  deploymentTarget:
+    iOS: "17.0"
+  xcodeVersion: "16.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    TARGETED_DEVICE_FAMILY: "1" # iPhone only
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+    ENABLE_PREVIEWS: "YES"
+
+targets:
+  MiniTelegram:
+    type: application
+    platform: iOS
+    sources:
+      - path: MiniTelegram
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.minitelegram.ios
+        INFOPLIST_FILE: MiniTelegram/Configuration/Info.plist
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+
+  MiniTelegramTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: MiniTelegram

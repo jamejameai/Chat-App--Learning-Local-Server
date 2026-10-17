@@ -122,15 +122,49 @@ public struct ChatDetailView: View {
                 }
             }
 
-            if viewModel.conversation.type == "group" {
-                ToolbarItem(placement: .navigationBarTrailing) {
+            ToolbarItemGroup(placement: .navigationBarTrailing) {
+                Button(action: {
+                    Task {
+                        await CallManager.shared.startCall(
+                            conversationId: viewModel.conversation.id,
+                            title: viewModel.conversation.title,
+                            callType: .audio
+                        )
+                    }
+                }) {
+                    Image(systemName: "phone")
+                        .font(.system(size: 17))
+                        .foregroundColor(AppColors.accent)
+                }
+
+                Button(action: {
+                    Task {
+                        await CallManager.shared.startCall(
+                            conversationId: viewModel.conversation.id,
+                            title: viewModel.conversation.title,
+                            callType: .video
+                        )
+                    }
+                }) {
+                    Image(systemName: "video")
+                        .font(.system(size: 17))
+                        .foregroundColor(AppColors.accent)
+                }
+
+                if viewModel.conversation.type == "group" {
                     NavigationLink(destination: GroupInfoView(conversation: viewModel.conversation)) {
                         Image(systemName: "info.circle")
-                            .font(.system(size: 18))
+                            .font(.system(size: 17))
                             .foregroundColor(AppColors.accent)
                     }
                 }
             }
+        }
+        .fullScreenCover(isPresented: Binding(
+            get: { CallManager.shared.activeCall != nil },
+            set: { _ in }
+        )) {
+            ActiveCallView()
         }
         .task {
             await viewModel.syncMessages()

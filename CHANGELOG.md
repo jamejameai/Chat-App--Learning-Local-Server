@@ -114,3 +114,23 @@ All notable changes to the Mini Telegram project are documented in this file.
   - `GroupAndAttachmentTests`: 6 new iOS unit tests verifying group member roles, attachment metadata serialization, voice note metadata encoding, zero-knowledge AES-256-GCM file encryption/decryption roundtrips, coordinator voice note group encryption/decryption, and member eviction Sender Key rotation.
   - Total test suites: iOS 28/28 tests passing (`** TEST SUCCEEDED **`), Backend 10/10 tests passing, clean production builds on both client and server.
 
+## [Phase 6] - 2026-10-17
+### Added
+- WebRTC & LiveKit SFU Calling Subsystem:
+  - Backend `calls` module (`/calls/initiate`, `/calls/:id/join`, `/calls/:id/end`, `/calls/history`) integrating `livekit-server-sdk` with JWT room grant signing.
+  - Multi-party and 1:1 call tracking in PostgreSQL (`calls`, `call_participants`) with status tracking (`dialing`, `active`, `ended`, `declined`, `missed`) and duration calculation.
+  - Realtime WebSocket gateway events: `call.incoming`, `call.participant_joined`, `call.ended`.
+- End-to-End Media Encryption (SFrame / FrameCryptor):
+  - `FrameCryptorManager`: SFrame AES-GCM media frame encryption using keys derived via HKDF-SHA256 from the conversation's master shared secret.
+  - 4-emoji visual verification fingerprint computed deterministically from the 256-bit media encryption key for zero-knowledge visual authentication.
+- Apple CallKit Integration:
+  - `CallKitManager`: `CXProvider` and `CXCallController` integration supporting native iOS lock-screen incoming calls, CallKit answer/end/mute actions, and `AVAudioSession` voice chat routing.
+- Native Call UI & In-App Floating Overlays:
+  - `ActiveCallView`: Telegram-style call interface with audio wave pulsation, Picture-in-Picture camera preview, camera flip, mute, speaker route toggle, and E2EE security verification explanation modal.
+  - `IncomingCallBannerView`: floating notification banner for foreground incoming calls with accept/decline actions.
+  - `CallsListView`: dedicated calls tab in `MainTabView` with call history direction indicators (outgoing green, incoming blue, missed red), duration, and one-tap redial.
+  - Navigation toolbar audio & video call buttons in `ChatDetailView`.
+- Automated Test Suite:
+  - `CallingTests`: 4 unit tests verifying `CallItem` Codable serialization, deterministic FrameCryptor key derivation, 4-emoji fingerprint uniqueness, SFrame media frame encryption/decryption, and `CallManager` state sequence. Total iOS suite: 32/32 tests passing.
+
+

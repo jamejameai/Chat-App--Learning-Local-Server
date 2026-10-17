@@ -19,6 +19,8 @@ public final class RealtimeService: NSObject, @unchecked Sendable, URLSessionWeb
     public var onPresenceUpdate: (@Sendable (String, Bool) -> Void)?
     public var onRekeyRequired: (@Sendable (String, String) -> Void)?
     public var onMemberUpdated: (@Sendable (String, String, String) -> Void)?
+    public var onIncomingCall: (@Sendable (String, String, String, String, String?, String) -> Void)?
+    public var onCallEnded: (@Sendable (String) -> Void)?
 
     private override init() {
         super.init()
@@ -185,6 +187,21 @@ public final class RealtimeService: NSObject, @unchecked Sendable, URLSessionWeb
                let userId = payload["user_id"] as? String,
                let role = payload["role"] as? String {
                 onMemberUpdated?(convId, userId, role)
+            }
+
+        case "call.incoming":
+            if let callId = payload["call_id"] as? String,
+               let convId = payload["conversation_id"] as? String,
+               let callerId = payload["caller_user_id"] as? String,
+               let callerName = payload["caller_name"] as? String,
+               let callType = payload["call_type"] as? String {
+                let convTitle = payload["conversation_title"] as? String
+                onIncomingCall?(callId, convId, callerId, callerName, convTitle, callType)
+            }
+
+        case "call.ended":
+            if let callId = payload["call_id"] as? String {
+                onCallEnded?(callId)
             }
 
         default:

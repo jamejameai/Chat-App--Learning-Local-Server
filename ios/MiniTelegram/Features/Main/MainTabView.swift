@@ -17,7 +17,7 @@ public struct MainTabView: View {
             .tag(AppTab.chats)
 
             NavigationStack {
-                CallsPlaceholderView()
+                CallsListView()
             }
             .tabItem {
                 Label(L("tab_calls"), systemImage: "phone.fill")

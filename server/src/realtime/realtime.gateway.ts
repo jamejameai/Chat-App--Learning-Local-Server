@@ -125,4 +125,8 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   notifyNewMessage(conversationId: string, message: any) {
     this.server.to(`conv:${conversationId}`).emit('message.new', message);
   }
+
+  notifyReceipt(conversationId: string, receipt: any) {
+    this.server.to(`conv:${conversationId}`).emit('message.receipt', receipt);
+  }
 }

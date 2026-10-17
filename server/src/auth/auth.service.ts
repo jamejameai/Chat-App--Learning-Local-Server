@@ -296,4 +296,20 @@ export class AuthService {
       refresh_token: refreshToken,
     };
   }
+
+  async listUsers(currentUserId: string, search?: string) {
+    let query = `
+      SELECT id, username, display_name, avatar_url, role, status, created_at
+      FROM users
+      WHERE status = 'active'
+    `;
+    const params: any[] = [];
+    if (search && search.trim().length > 0) {
+      params.push(`%${search.trim().toLowerCase()}%`);
+      query += ` AND (LOWER(username) LIKE $${params.length} OR LOWER(display_name) LIKE $${params.length})`;
+    }
+    query += ` ORDER BY display_name ASC LIMIT 50`;
+    const res = await this.db.query(query, params);
+    return res.rows;
+  }
 }

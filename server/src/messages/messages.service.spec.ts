@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { MessagesService } from './messages.service';
 import { DatabaseService } from '../database/database.service';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 import { ForbiddenException } from '@nestjs/common';
 
 describe('MessagesService', () => {
   let messagesService: MessagesService;
   let dbMock: any;
+  let realtimeMock: any;
 
   beforeEach(async () => {
     dbMock = {
@@ -13,10 +15,16 @@ describe('MessagesService', () => {
       transaction: jest.fn(),
     };
 
+    realtimeMock = {
+      notifyNewMessage: jest.fn(),
+      notifyReceipt: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MessagesService,
         { provide: DatabaseService, useValue: dbMock },
+        { provide: RealtimeGateway, useValue: realtimeMock },
       ],
     }).compile();
 

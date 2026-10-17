@@ -1,16 +1,21 @@
 import {
   Injectable,
   ForbiddenException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { SubmitMessageDto } from './dto/submit-message.dto';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 @Injectable()
 export class MessagesService {
   private readonly logger = new Logger(MessagesService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   async submitMessage(
     userId: string,
@@ -40,6 +45,9 @@ export class MessagesService {
     if (existing.rows.length > 0) {
       return {
         id: existing.rows[0].id,
+        conversation_id: conversationId,
+        sender_user_id: userId,
+        sender_device_id: deviceId,
         sequence_id: existing.rows[0].sequence_id,
         created_at: existing.rows[0].created_at,
         status: 'accepted',
@@ -48,7 +56,7 @@ export class MessagesService {
     }
 
     // 3. Atomically allocate sequence_id and insert envelope
-    return await this.db.transaction(async (client) => {
+    const message = await this.db.transaction(async (client) => {
       const seqRes = await client.query(
         `UPDATE conversations
          SET last_sequence_id = last_sequence_id + 1,
@@ -82,11 +90,73 @@ export class MessagesService {
 
       return {
         id: insertRes.rows[0].id,
+        conversation_id: conversationId,
+        sender_user_id: userId,
+        sender_device_id: deviceId,
         sequence_id: insertRes.rows[0].sequence_id,
+        envelope_type: dto.envelope_type,
+        encrypted_payload: dto.encrypted_payload,
+        iv: dto.iv,
+        reply_to_message_id: dto.reply_to_message_id || null,
         created_at: insertRes.rows[0].created_at,
         status: 'accepted',
         deduplicated: false,
       };
     });
+
+    // 4. Broadcast in real time over WebSocket to conversation room
+    this.realtimeGateway.notifyNewMessage(conversationId, message);
+
+    return message;
+  }
+
+  async recordReceipt(
+    userId: string,
+    deviceId: string,
+    conversationId: string,
+    messageId: string,
+    status: 'delivered' | 'read',
+  ) {
+    // 1. Verify message exists
+    const msgRes = await this.db.query(
+      'SELECT id, sequence_id FROM messages WHERE id = $1 AND conversation_id = $2',
+      [messageId, conversationId],
+    );
+    if (msgRes.rows.length === 0) {
+      throw new NotFoundException('Message not found');
+    }
+
+    // 2. Insert receipt with deduplication
+    await this.db.query(
+      `INSERT INTO message_receipts (message_id, user_id, device_id, status, timestamp)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (message_id, device_id, status) DO NOTHING`,
+      [messageId, userId, deviceId, status],
+    );
+
+    // 3. If read, update last_read_sequence_id on conversation_members
+    if (status === 'read') {
+      const seq = msgRes.rows[0].sequence_id;
+      await this.db.query(
+        `UPDATE conversation_members
+         SET last_read_sequence_id = GREATEST(last_read_sequence_id, $1)
+         WHERE conversation_id = $2 AND user_id = $3`,
+        [seq, conversationId, userId],
+      );
+    }
+
+    const receiptPayload = {
+      message_id: messageId,
+      conversation_id: conversationId,
+      user_id: userId,
+      device_id: deviceId,
+      status,
+      timestamp: new Date().toISOString(),
+    };
+
+    // 4. Broadcast receipt event over WebSocket
+    this.realtimeGateway.notifyReceipt(conversationId, receiptPayload);
+
+    return { success: true, ...receiptPayload };
   }
 }

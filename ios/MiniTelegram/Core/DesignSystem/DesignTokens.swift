@@ -19,6 +19,8 @@ public enum AppColors {
         trait.userInterfaceStyle == .dark ? UIColor.tertiarySystemBackground : UIColor(red: 229/255, green: 229/255, blue: 234/255, alpha: 1.0) // #E5E5EA
     })
 
+    public static let surface = secondaryBackground
+
     // Text & Foreground
     public static let textPrimary = Color(UIColor { trait in
         trait.userInterfaceStyle == .dark ? UIColor.white : UIColor(red: 17/255, green: 24/255, blue: 39/255, alpha: 1.0) // #111827
@@ -36,6 +38,7 @@ public enum AppColors {
     public static let statusOnline = Color(red: 52 / 255, green: 199 / 255, blue: 89 / 255) // #34C759
     public static let statusError = Color(red: 239 / 255, green: 68 / 255, blue: 68 / 255)
     public static let statusWarning = Color(red: 245 / 255, green: 158 / 255, blue: 11 / 255)
+    public static let readReceipt = Color(red: 129 / 255, green: 212 / 255, blue: 250 / 255) // Cyan/Blue read receipt ticks
 
     // Message Bubbles
     public static let outgoingBubble = accent

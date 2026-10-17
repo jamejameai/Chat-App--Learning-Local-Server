@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   Get,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -46,5 +47,14 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   async getProfile(@CurrentUser() user: any) {
     return user;
+  }
+
+  @Get('users')
+  @UseGuards(JwtAuthGuard)
+  async listUsers(
+    @CurrentUser('userId') userId: string,
+    @Query('search') search?: string,
+  ) {
+    return await this.authService.listUsers(userId, search);
   }
 }

@@ -35,6 +35,10 @@ public actor APIClient {
         self.baseURLString = UserDefaults.standard.string(forKey: "server_base_url") ?? "http://localhost:3000/api/v1"
     }
 
+    public nonisolated var currentBaseURL: String {
+        UserDefaults.standard.string(forKey: "server_base_url") ?? "http://localhost:3000/api/v1"
+    }
+
     public func setBaseURL(_ url: String) {
         self.baseURLString = url
         UserDefaults.standard.set(url, forKey: "server_base_url")

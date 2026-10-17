@@ -29,4 +29,21 @@ export class MessagesController {
       dto,
     );
   }
+
+  @Post(':messageId/receipt')
+  async recordReceipt(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('deviceId') deviceId: string,
+    @Param('conversationId') conversationId: string,
+    @Param('messageId') messageId: string,
+    @Body('status') status: 'delivered' | 'read',
+  ) {
+    return await this.messagesService.recordReceipt(
+      userId,
+      deviceId,
+      conversationId,
+      messageId,
+      status || 'delivered',
+    );
+  }
 }

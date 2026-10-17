@@ -9,7 +9,7 @@ public struct MainTabView: View {
     public var body: some View {
         TabView(selection: $appState.selectedTab) {
             NavigationStack {
-                ChatsPlaceholderView()
+                ConversationListView()
             }
             .tabItem {
                 Label(L("tab_chats"), systemImage: "bubble.left.and.bubble.right.fill")

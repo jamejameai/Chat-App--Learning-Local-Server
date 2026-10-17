@@ -70,3 +70,22 @@ All notable changes to the Mini Telegram project are documented in this file.
   - `KeychainManager`: Hardware-backed Secure Enclave / iOS Keychain wrapper for persistent private keys, biometric access control, and token management.
   - `BiometricAuthManager`: LocalAuthentication framework integration supporting Face ID, Touch ID, and device passcode fallbacks.
   - Verified Cryptographic Unit Tests: Full passing test suite (`DoubleRatchetTests`, `X3DHTests`, `SenderKeysTests`, `CryptoIdentityTests`, `FileEncryptionTests`) executing 16 tests with 0 failures on iOS Simulator.
+
+## [Phase 4] - 2026-10-17
+### Added
+- Persistent Encrypted Messaging & Realtime Gateway:
+  - Backend messaging service (`MessagesService`) with atomic monotonic sequence allocation (`UPDATE conversations SET last_sequence_id = last_sequence_id + 1 ... RETURNING last_sequence_id`) ensuring linear message order.
+  - Message deduplication & client UUID idempotency preventing replay duplication.
+  - Realtime WebSocket gateway (`RealtimeGateway`) broadcasting `message.new`, `message.receipt`, `typing.update`, and `presence.update`.
+  - Delivery and read receipts endpoint (`POST /conversations/:id/messages/:messageId/receipt`) with automatic sequence marker updating on `conversation_members`.
+  - Team member directory endpoint (`GET /auth/users`) with search query filtering.
+  - iOS `LocalDatabaseManager`: file-backed encrypted local message persistence with automatic sequence sorting, deduplication, unread counting, and full-text search across decrypted text.
+  - iOS `MessageCryptoCoordinator`: coordinator wrapping Double Ratchet and AEAD payload encryption, serialization, and inner payload decoding (text, replies, reactions).
+  - iOS `RealtimeService`: Socket.IO / WebSocket client with automatic exponential backoff reconnection, heartbeat ping/pong, presence, and typing status dispatch.
+  - iOS UI:
+    - `ConversationListView`: responsive conversation list, unread badges, timestamp formatting, online indicators, and instant local full-text search.
+    - `NewConversationSheet`: team directory selector to launch 1:1 direct encrypted chats.
+    - `ChatDetailView`: chat room with date separator headers, message bubbles, scrolling reader, delivery/read tick indicators, and live typing subtitle.
+    - `MessageBubbleView`: native chat bubbles with custom corner geometry, quoted reply preview, timestamp, status ticks (sending, sent, delivered, read), context menu, and interactive emoji reaction ribbons.
+    - `MessageComposerView`: multi-line expanding input, quoted reply banner with cancel button, attachment action, and animated send button.
+  - Verified Unit Tests: 6 new unit tests (`MessagingTests`) verifying local database sorting, idempotency, full-text search, reaction mutations, read receipt tracking, and cryptographic envelope round-tripping. Total iOS suite: 22/22 tests passing with 0 failures. Server test suite: 10/10 tests passing with 0 failures.

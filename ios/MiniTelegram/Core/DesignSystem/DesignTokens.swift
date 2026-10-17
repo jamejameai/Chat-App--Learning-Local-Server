@@ -75,6 +75,8 @@ public enum AppCornerRadius {
 public enum AppTypography {
     public static let largeTitle: Font = .system(.largeTitle, design: .default).weight(.bold)
     public static let title: Font = .system(.title, design: .default).weight(.semibold)
+    public static let title2: Font = .system(.title2, design: .default).weight(.semibold)
+    public static let title3: Font = .system(.title3, design: .default).weight(.semibold)
     public static let headline: Font = .system(.headline, design: .default).weight(.semibold)
     public static let body: Font = .system(.body, design: .default)
     public static let subheadline: Font = .system(.subheadline, design: .default)

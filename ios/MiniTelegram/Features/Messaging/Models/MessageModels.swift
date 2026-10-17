@@ -21,6 +21,50 @@ public struct ReactionItem: Codable, Hashable, Identifiable, Sendable {
     }
 }
 
+public struct MessageAttachment: Codable, Hashable, Sendable {
+    public let id: String
+    public let fileName: String
+    public let mimeType: String
+    public let byteSize: Int64
+    public let keyBase64: String
+    public let ivBase64: String
+    public let sha256Checksum: String
+    public let downloadUrl: String
+    public var localDecryptedPath: String?
+
+    public init(
+        id: String = UUID().uuidString,
+        fileName: String,
+        mimeType: String,
+        byteSize: Int64,
+        keyBase64: String,
+        ivBase64: String,
+        sha256Checksum: String,
+        downloadUrl: String,
+        localDecryptedPath: String? = nil
+    ) {
+        self.id = id
+        self.fileName = fileName
+        self.mimeType = mimeType
+        self.byteSize = byteSize
+        self.keyBase64 = keyBase64
+        self.ivBase64 = ivBase64
+        self.sha256Checksum = sha256Checksum
+        self.downloadUrl = downloadUrl
+        self.localDecryptedPath = localDecryptedPath
+    }
+}
+
+public struct VoiceNoteMetadata: Codable, Hashable, Sendable {
+    public let durationSeconds: Double
+    public let waveformSamples: [Float]
+
+    public init(durationSeconds: Double, waveformSamples: [Float]) {
+        self.durationSeconds = durationSeconds
+        self.waveformSamples = waveformSamples
+    }
+}
+
 public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
     public let id: String
     public let conversationId: String
@@ -35,6 +79,8 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
     public let timestamp: Date
     public var reactions: [ReactionItem]
     public var isOutgoing: Bool
+    public var attachment: MessageAttachment?
+    public var voiceNote: VoiceNoteMetadata?
 
     public init(
         id: String = UUID().uuidString,
@@ -49,7 +95,9 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
         status: MessageDeliveryStatus = .sending,
         timestamp: Date = Date(),
         reactions: [ReactionItem] = [],
-        isOutgoing: Bool = false
+        isOutgoing: Bool = false,
+        attachment: MessageAttachment? = nil,
+        voiceNote: VoiceNoteMetadata? = nil
     ) {
         self.id = id
         self.conversationId = conversationId
@@ -64,12 +112,14 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
         self.timestamp = timestamp
         self.reactions = reactions
         self.isOutgoing = isOutgoing
+        self.attachment = attachment
+        self.voiceNote = voiceNote
     }
 }
 
 public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
     public let id: String
-    public let type: String // "direct" | "group"
+    public let type: String // "direct" | "group" | "channel"
     public var title: String
     public var avatarUrl: String?
     public var lastMessageText: String?
@@ -79,6 +129,7 @@ public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
     public var isPinned: Bool
     public var isOnline: Bool
     public var recipientUserId: String?
+    public var memberCount: Int
 
     public init(
         id: String,
@@ -91,7 +142,8 @@ public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
         lastSequenceId: Int64 = 0,
         isPinned: Bool = false,
         isOnline: Bool = false,
-        recipientUserId: String? = nil
+        recipientUserId: String? = nil,
+        memberCount: Int = 1
     ) {
         self.id = id
         self.type = type
@@ -104,6 +156,7 @@ public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
         self.isPinned = isPinned
         self.isOnline = isOnline
         self.recipientUserId = recipientUserId
+        self.memberCount = memberCount
     }
 }
 
@@ -118,4 +171,20 @@ public struct TeamMember: Codable, Identifiable, Hashable, Sendable {
     public var title: String {
         displayName?.isEmpty == false ? displayName! : username
     }
+}
+
+public struct GroupMember: Codable, Identifiable, Hashable, Sendable {
+    public let id: String
+    public let username: String
+    public let displayName: String?
+    public let avatarUrl: String?
+    public var role: String // "owner" | "admin" | "member" | "read_only"
+    public let joinedAt: String?
+
+    public var title: String {
+        displayName?.isEmpty == false ? displayName! : username
+    }
+
+    public var isOwner: Bool { role == "owner" }
+    public var isAdmin: Bool { role == "admin" || role == "owner" }
 }

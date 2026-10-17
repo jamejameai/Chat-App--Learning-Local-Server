@@ -98,4 +98,50 @@ public final class FileEncryptionService: Sendable {
         let sealedBox = try AES.GCM.SealedBox(nonce: nonce, ciphertext: rawCiphertext, tag: tag)
         return try AES.GCM.open(sealedBox, using: key)
     }
+
+    public func encrypt(fileData: Data) throws -> (ciphertext: Data, keyBase64: String, ivBase64: String, sha256Checksum: String) {
+        let package = try encryptFile(fileData: fileData, filename: "file.bin", mimeType: "application/octet-stream")
+        return (
+            ciphertext: package.ciphertext,
+            keyBase64: package.metadata.keyBase64,
+            ivBase64: package.metadata.ivBase64,
+            sha256Checksum: package.metadata.sha256Hex
+        )
+    }
+
+    public func decrypt(ciphertext: Data, keyBase64: String, ivBase64: String) throws -> Data {
+        let digest = SHA256.hash(data: ciphertext)
+        let sha256Hex = digest.map { String(format: "%02x", $0) }.joined()
+        let metadata = EncryptedFileMetadata(
+            keyBase64: keyBase64,
+            ivBase64: ivBase64,
+            sha256Hex: sha256Hex,
+            mimeType: "application/octet-stream",
+            originalFilename: "file.bin",
+            byteSize: 0
+        )
+        return try decryptFile(ciphertext: ciphertext, metadata: metadata)
+    }
+
+    public static func encryptFile(at fileURL: URL) throws -> (encryptedURL: URL, key: Data, iv: Data, sha256: String) {
+        let plaintext = try Data(contentsOf: fileURL)
+        let package = try shared.encryptFile(fileData: plaintext, filename: fileURL.lastPathComponent, mimeType: "application/octet-stream")
+        let tempEncrypted = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".enc")
+        try package.ciphertext.write(to: tempEncrypted)
+        let keyData = Data(base64Encoded: package.metadata.keyBase64)!
+        let ivData = Data(base64Encoded: package.metadata.ivBase64)!
+        return (tempEncrypted, keyData, ivData, package.metadata.sha256Hex)
+    }
+
+    public static func decryptFile(at fileURL: URL, key: Data, iv: Data) throws -> URL {
+        let ciphertext = try Data(contentsOf: fileURL)
+        let decryptedData = try shared.decrypt(
+            ciphertext: ciphertext,
+            keyBase64: key.base64EncodedString(),
+            ivBase64: iv.base64EncodedString()
+        )
+        let tempDecrypted = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".dec")
+        try decryptedData.write(to: tempDecrypted)
+        return tempDecrypted
+    }
 }

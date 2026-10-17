@@ -89,3 +89,28 @@ All notable changes to the Mini Telegram project are documented in this file.
     - `MessageBubbleView`: native chat bubbles with custom corner geometry, quoted reply preview, timestamp, status ticks (sending, sent, delivered, read), context menu, and interactive emoji reaction ribbons.
     - `MessageComposerView`: multi-line expanding input, quoted reply banner with cancel button, attachment action, and animated send button.
   - Verified Unit Tests: 6 new unit tests (`MessagingTests`) verifying local database sorting, idempotency, full-text search, reaction mutations, read receipt tracking, and cryptographic envelope round-tripping. Total iOS suite: 22/22 tests passing with 0 failures. Server test suite: 10/10 tests passing with 0 failures.
+
+## [Phase 5] - 2026-10-17
+### Added
+- Group Management & Multi-Party Architecture:
+  - Backend group membership API (`/conversations/:id/members`, `DELETE /conversations/:id/members/:targetUserId`, `PATCH /conversations/:id/members/:targetUserId`) with role permissions (`owner`, `admin`, `member`, `read_only`).
+  - Cryptographic eviction re-key notification: server broadcasts `conversation.rekey_required` on member eviction, triggering mandatory Sender Key rotation across remaining members.
+  - Role management: group owner can promote members to admin, demote, or set read-only mode with realtime `conversation.member_updated` dispatch.
+- Zero-Knowledge Encrypted File Attachments:
+  - Backend `/attachments` module (`POST /attachments/upload`, `GET /attachments/:id/download`) storing only encrypted ciphertexts and SHA-256 integrity checksums. Zero-knowledge guarantee: server never receives plaintext or symmetric keys.
+  - Client-side `AttachmentManager`: client-side AES-256-GCM encryption before upload, local decrypted cache directory, SHA-256 verification before decryption, and QuickLook support.
+  - `AttachmentBubbleView`: inline image thumbnail preview with tap-to-expand QuickLook preview, and document cards displaying SF Symbol file icons, truncated filename, formatted byte size (KB/MB), and download triggers.
+- Voice Notes Subsystem:
+  - `AudioRecorderManager`: AAC audio recording with live downsampled waveform sample metering and duration tracking.
+  - `AudioPlayerManager`: AVAudioPlayer wrapper with single active playback session, progress scrub bar, and automatic stop callbacks.
+  - `VoiceMessageBubbleView`: Telegram-style voice bubble with dynamic waveform amplitude bars, play/pause toggle button, elapsed/total duration timer, and local caching.
+- Enhanced Message Composer & Navigation:
+  - `MessageComposerView`: updated with PhotosPicker for inline photo attachments, system file importer for documents, and press-to-record voice note bar with live audio waveform and duration display.
+  - `GroupsViewModel` and `GroupInfoViewModel`: state management for group chats, member lists, role updates, and proactive Sender Key rotation.
+  - `GroupsListView`: dedicated group chat tab in MainTabView with search, unread badges, member count indicators, and "Create New Group" action.
+  - `CreateGroupSheet` and `AddGroupMemberSheet`: multi-select team directory selector with checkmark indicators.
+  - `GroupInfoView`: comprehensive group management screen displaying member count, Sender Keys E2EE shield badge, role badges ("Owner", "Admin", "Member", "Read-Only"), admin action menus, and destructive "Leave Group" flow.
+- Automated Test Suite:
+  - `GroupAndAttachmentTests`: 6 new iOS unit tests verifying group member roles, attachment metadata serialization, voice note metadata encoding, zero-knowledge AES-256-GCM file encryption/decryption roundtrips, coordinator voice note group encryption/decryption, and member eviction Sender Key rotation.
+  - Total test suites: iOS 28/28 tests passing (`** TEST SUCCEEDED **`), Backend 10/10 tests passing, clean production builds on both client and server.
+

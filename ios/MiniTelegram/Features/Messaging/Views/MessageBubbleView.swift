@@ -26,6 +26,13 @@ public struct MessageBubbleView: View {
             VStack(alignment: message.isOutgoing ? .trailing : .leading, spacing: 2) {
                 // Main Bubble
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
+                    // Sender Name (for incoming messages)
+                    if !message.isOutgoing && !message.senderName.isEmpty {
+                        Text(message.senderName)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppColors.accent)
+                    }
+
                     // Quoted Reply Preview
                     if let replyText = message.replyPreview {
                         HStack(spacing: AppSpacing.xs) {
@@ -44,10 +51,27 @@ public struct MessageBubbleView: View {
                         .cornerRadius(AppCornerRadius.sm)
                     }
 
+                    // Voice Note View
+                    if let voiceNote = message.voiceNote {
+                        VoiceMessageBubbleView(
+                            messageId: message.id,
+                            isOutgoing: message.isOutgoing,
+                            voiceNote: voiceNote,
+                            attachment: message.attachment
+                        )
+                    } else if let attachment = message.attachment {
+                        AttachmentBubbleView(
+                            attachment: attachment,
+                            isOutgoing: message.isOutgoing
+                        )
+                    }
+
                     // Message Text
-                    Text(message.text)
-                        .font(AppTypography.body)
-                        .foregroundColor(message.isOutgoing ? Color.white : AppColors.textPrimary)
+                    if !message.text.isEmpty {
+                        Text(message.text)
+                            .font(AppTypography.body)
+                            .foregroundColor(message.isOutgoing ? Color.white : AppColors.textPrimary)
+                    }
 
                     // Footer: Timestamp & Delivery Status
                     HStack(spacing: 4) {

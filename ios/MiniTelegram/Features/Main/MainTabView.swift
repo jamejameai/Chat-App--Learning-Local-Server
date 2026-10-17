@@ -25,7 +25,7 @@ public struct MainTabView: View {
             .tag(AppTab.calls)
 
             NavigationStack {
-                GroupsPlaceholderView()
+                GroupsListView()
             }
             .tabItem {
                 Label(L("tab_community"), systemImage: "person.2.fill")

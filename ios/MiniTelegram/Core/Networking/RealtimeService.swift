@@ -17,6 +17,8 @@ public final class RealtimeService: NSObject, @unchecked Sendable, URLSessionWeb
     public var onReceiptReceived: (@Sendable (String, String, MessageDeliveryStatus) -> Void)?
     public var onTypingUpdate: (@Sendable (String, String, Bool) -> Void)?
     public var onPresenceUpdate: (@Sendable (String, Bool) -> Void)?
+    public var onRekeyRequired: (@Sendable (String, String) -> Void)?
+    public var onMemberUpdated: (@Sendable (String, String, String) -> Void)?
 
     private override init() {
         super.init()
@@ -170,6 +172,19 @@ public final class RealtimeService: NSObject, @unchecked Sendable, URLSessionWeb
             if let userId = payload["user_id"] as? String,
                let isOnline = payload["is_online"] as? Bool {
                 onPresenceUpdate?(userId, isOnline)
+            }
+
+        case "conversation.rekey_required":
+            if let convId = payload["conversation_id"] as? String,
+               let evictedId = payload["evicted_user_id"] as? String {
+                onRekeyRequired?(convId, evictedId)
+            }
+
+        case "conversation.member_updated":
+            if let convId = payload["conversation_id"] as? String,
+               let userId = payload["user_id"] as? String,
+               let role = payload["role"] as? String {
+                onMemberUpdated?(convId, userId, role)
             }
 
         default:

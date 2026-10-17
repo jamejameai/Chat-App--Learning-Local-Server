@@ -8,6 +8,7 @@ import { DevicesModule } from './devices/devices.module';
 import { ConversationsModule } from './conversations/conversations.module';
 import { MessagesModule } from './messages/messages.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { AttachmentsModule } from './attachments/attachments.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     ConversationsModule,
     MessagesModule,
     RealtimeModule,
+    AttachmentsModule,
   ],
 })
 export class AppModule {}

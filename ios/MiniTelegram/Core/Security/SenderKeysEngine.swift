@@ -60,6 +60,7 @@ public final class SenderKeySession: @unchecked Sendable {
 
     private var chainKey: SymmetricKey
     private var iteration: Int
+    private var messageKeys: [Int: SymmetricKey] = [:]
     private let signingPrivateKey: Curve25519.Signing.PrivateKey?
     private let signingPublicKey: Curve25519.Signing.PublicKey
 
@@ -127,6 +128,7 @@ public final class SenderKeySession: @unchecked Sendable {
         self.chainKey = nextCK
         let currentIter = iteration
         self.iteration += 1
+        self.messageKeys[currentIter] = mk
 
         // 2. Encrypt with AES-GCM
         let nonce = AES.GCM.Nonce()
@@ -162,23 +164,30 @@ public final class SenderKeySession: @unchecked Sendable {
             throw CryptoError.invalidSignature
         }
 
-        // 2. Advance chain until envelope iteration
-        guard envelope.iteration >= self.iteration else {
-            throw CryptoError.duplicateMessage
+        // 2. Fetch or advance message key
+        let mk: SymmetricKey
+        if envelope.iteration < self.iteration {
+            guard let cachedMK = messageKeys[envelope.iteration] else {
+                throw CryptoError.duplicateMessage
+            }
+            mk = cachedMK
+        } else {
+            var workingCK = self.chainKey
+            var currentIter = self.iteration
+
+            while currentIter < envelope.iteration {
+                let (nextCK, skippedMK) = SenderKeySession.kdfChain(ck: workingCK)
+                self.messageKeys[currentIter] = skippedMK
+                workingCK = nextCK
+                currentIter += 1
+            }
+
+            let (nextCK, currentMK) = SenderKeySession.kdfChain(ck: workingCK)
+            self.chainKey = nextCK
+            self.iteration = currentIter + 1
+            self.messageKeys[envelope.iteration] = currentMK
+            mk = currentMK
         }
-
-        var workingCK = self.chainKey
-        var currentIter = self.iteration
-
-        while currentIter < envelope.iteration {
-            let (nextCK, _) = SenderKeySession.kdfChain(ck: workingCK)
-            workingCK = nextCK
-            currentIter += 1
-        }
-
-        let (nextCK, mk) = SenderKeySession.kdfChain(ck: workingCK)
-        self.chainKey = nextCK
-        self.iteration = currentIter + 1
 
         // 3. Decrypt with AES-GCM
         guard ciphertextData.count >= 16 else {

@@ -7,12 +7,16 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { CreateConversationDto } from './dto/create-conversation.dto';
+import { RealtimeGateway } from '../realtime/realtime.gateway';
 
 @Injectable()
 export class ConversationsService {
   private readonly logger = new Logger(ConversationsService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly realtimeGateway: RealtimeGateway,
+  ) {}
 
   async listConversations(userId: string) {
     const res = await this.db.query(
@@ -130,7 +134,8 @@ export class ConversationsService {
       `SELECT u.id, u.username, u.display_name, u.avatar_url, cm.role, cm.joined_at
        FROM conversation_members cm
        JOIN users u ON u.id = cm.user_id
-       WHERE cm.conversation_id = $1`,
+       WHERE cm.conversation_id = $1
+       ORDER BY cm.role ASC, cm.joined_at ASC`,
       [conversationId],
     );
     conv.members = membersRes.rows;
@@ -178,5 +183,102 @@ export class ConversationsService {
       latest_sequence_id: convRes.rows[0]?.last_sequence_id || 0,
       has_more: msgsRes.rows.length === limit,
     };
+  }
+
+  async addMembers(conversationId: string, currentUserId: string, memberUserIds: string[]) {
+    // 1. Verify caller has admin/owner privileges in this group
+    const callerRes = await this.db.query(
+      'SELECT role FROM conversation_members WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, currentUserId],
+    );
+    if (callerRes.rows.length === 0 || !['owner', 'admin'].includes(callerRes.rows[0].role)) {
+      throw new ForbiddenException('Only group owners or admins can add members');
+    }
+
+    for (const userId of memberUserIds) {
+      await this.db.query(
+        `INSERT INTO conversation_members (conversation_id, user_id, role)
+         VALUES ($1, $2, 'member')
+         ON CONFLICT (conversation_id, user_id) DO NOTHING`,
+        [conversationId, userId],
+      );
+    }
+
+    this.realtimeGateway.server.to(`conv:${conversationId}`).emit('conversation.member_updated', {
+      conversation_id: conversationId,
+      action: 'added',
+      user_ids: memberUserIds,
+    });
+
+    return await this.getConversation(conversationId, currentUserId);
+  }
+
+  async removeMember(conversationId: string, currentUserId: string, targetUserId: string) {
+    const callerRes = await this.db.query(
+      'SELECT role FROM conversation_members WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, currentUserId],
+    );
+    if (callerRes.rows.length === 0) {
+      throw new ForbiddenException('Not a member of this conversation');
+    }
+    const callerRole = callerRes.rows[0].role;
+
+    // Self-leave is permitted; otherwise caller must be owner/admin
+    if (currentUserId !== targetUserId) {
+      if (!['owner', 'admin'].includes(callerRole)) {
+        throw new ForbiddenException('Only owners and admins can remove group members');
+      }
+      // Check target is not owner
+      const targetRes = await this.db.query(
+        'SELECT role FROM conversation_members WHERE conversation_id = $1 AND user_id = $2',
+        [conversationId, targetUserId],
+      );
+      if (targetRes.rows.length > 0 && targetRes.rows[0].role === 'owner') {
+        throw new ForbiddenException('Group owner cannot be removed');
+      }
+    }
+
+    await this.db.query(
+      'DELETE FROM conversation_members WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, targetUserId],
+    );
+
+    // Cryptographic re-key notification: remaining members MUST rotate Sender Key
+    this.realtimeGateway.server.to(`conv:${conversationId}`).emit('conversation.rekey_required', {
+      conversation_id: conversationId,
+      evicted_user_id: targetUserId,
+      reason: 'member_removed',
+    });
+
+    return { success: true, removed_user_id: targetUserId };
+  }
+
+  async updateMemberRole(
+    conversationId: string,
+    currentUserId: string,
+    targetUserId: string,
+    role: 'admin' | 'member' | 'read_only',
+  ) {
+    const callerRes = await this.db.query(
+      'SELECT role FROM conversation_members WHERE conversation_id = $1 AND user_id = $2',
+      [conversationId, currentUserId],
+    );
+    if (callerRes.rows.length === 0 || callerRes.rows[0].role !== 'owner') {
+      throw new ForbiddenException('Only the group owner can change member roles');
+    }
+
+    await this.db.query(
+      'UPDATE conversation_members SET role = $1 WHERE conversation_id = $2 AND user_id = $3',
+      [role, conversationId, targetUserId],
+    );
+
+    this.realtimeGateway.server.to(`conv:${conversationId}`).emit('conversation.member_updated', {
+      conversation_id: conversationId,
+      action: 'role_changed',
+      user_id: targetUserId,
+      role,
+    });
+
+    return { success: true, user_id: targetUserId, role };
   }
 }

@@ -64,6 +64,30 @@ public struct ChatDetailView: View {
                     Task {
                         await viewModel.sendMessage(currentUserId: user.id, currentUsername: user.displayName)
                     }
+                },
+                onSendAttachment: { fileUrl, fileName, mimeType in
+                    guard let user = appState.currentUser else { return }
+                    Task {
+                        await viewModel.sendAttachment(
+                            fileURL: fileUrl,
+                            fileName: fileName,
+                            mimeType: mimeType,
+                            currentUserId: user.id,
+                            currentUsername: user.displayName
+                        )
+                    }
+                },
+                onSendVoiceNote: { fileUrl, duration, waveform in
+                    guard let user = appState.currentUser else { return }
+                    Task {
+                        await viewModel.sendVoiceNote(
+                            fileURL: fileUrl,
+                            duration: duration,
+                            waveform: waveform,
+                            currentUserId: user.id,
+                            currentUsername: user.displayName
+                        )
+                    }
                 }
             )
             .onChange(of: viewModel.inputText) { newText in
@@ -90,10 +114,20 @@ public struct ChatDetailView: View {
                         HStack(spacing: 3) {
                             Image(systemName: "lock.fill")
                                 .font(.system(size: 9))
-                            Text(L("chat_e2ee_badge"))
+                            Text(viewModel.conversation.type == "group" ? "Sender Keys E2EE" : L("chat_e2ee_badge"))
                                 .font(.system(size: 10))
                         }
                         .foregroundColor(AppColors.textTertiary)
+                    }
+                }
+            }
+
+            if viewModel.conversation.type == "group" {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    NavigationLink(destination: GroupInfoView(conversation: viewModel.conversation)) {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 18))
+                            .foregroundColor(AppColors.accent)
                     }
                 }
             }

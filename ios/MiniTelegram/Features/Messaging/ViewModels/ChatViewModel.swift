@@ -59,7 +59,7 @@ public final class ChatViewModel: ObservableObject {
 
             var newChatMessages: [ChatMessage] = []
             for raw in res.messages {
-                let text = MessageCryptoCoordinator.shared.decryptMessage(
+                let decrypted = MessageCryptoCoordinator.shared.decryptMessage(
                     conversationId: conversation.id,
                     encryptedPayloadBase64: raw.encrypted_payload,
                     ivBase64: raw.iv,
@@ -76,11 +76,13 @@ public final class ChatViewModel: ObservableObject {
                     senderDeviceId: raw.sender_device_id ?? "",
                     senderName: raw.sender_username ?? "Team Member",
                     sequenceId: seq,
-                    text: text,
-                    replyToMessageId: raw.reply_to_message_id,
+                    text: decrypted.text,
+                    replyToMessageId: raw.reply_to_message_id ?? decrypted.replyToMessageId,
                     status: .read,
                     timestamp: timestamp,
-                    isOutgoing: false
+                    isOutgoing: false,
+                    attachment: decrypted.attachment,
+                    voiceNote: decrypted.voiceNote
                 )
                 newChatMessages.append(msg)
             }
@@ -127,7 +129,8 @@ public final class ChatViewModel: ObservableObject {
             let (payload, iv, envType) = try MessageCryptoCoordinator.shared.encryptMessage(
                 conversationId: conversation.id,
                 text: trimmed,
-                replyToMessageId: replyId
+                replyToMessageId: replyId,
+                isGroup: conversation.type == "group"
             )
 
             struct SubmitBody: Codable {
@@ -166,6 +169,240 @@ public final class ChatViewModel: ObservableObject {
             loadLocalMessages()
         } catch {
             print("[ChatViewModel] sendMessage error: \(error.localizedDescription)")
+            LocalDatabaseManager.shared.updateMessageStatus(
+                messageId: messageId,
+                conversationId: conversation.id,
+                status: .failed
+            )
+            loadLocalMessages()
+        }
+    }
+
+    public func sendAttachment(
+        fileURL: URL,
+        fileName: String,
+        mimeType: String,
+        currentUserId: String,
+        currentUsername: String
+    ) async {
+        let messageId = UUID().uuidString
+        let replyId = replyingToMessage?.id
+        let replyPreview = replyingToMessage?.text
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int64) ?? 0
+
+        // 1. Optimistic message
+        let optimisticAttachment = MessageAttachment(
+            id: UUID().uuidString,
+            fileName: fileName,
+            mimeType: mimeType,
+            byteSize: fileSize,
+            keyBase64: "",
+            ivBase64: "",
+            sha256Checksum: "",
+            downloadUrl: "",
+            localDecryptedPath: fileURL.path
+        )
+
+        let optimisticMessage = ChatMessage(
+            id: messageId,
+            conversationId: conversation.id,
+            senderUserId: currentUserId,
+            senderName: currentUsername,
+            text: "",
+            replyToMessageId: replyId,
+            replyPreview: replyPreview,
+            status: .sending,
+            timestamp: Date(),
+            isOutgoing: true,
+            attachment: optimisticAttachment
+        )
+
+        LocalDatabaseManager.shared.saveMessage(optimisticMessage)
+        loadLocalMessages()
+        replyingToMessage = nil
+
+        do {
+            // 2. Encrypt & Upload attachment
+            let (attId, keyBase64, ivBase64, sha256, downloadUrl) = try await AttachmentManager.shared.encryptAndUploadFile(
+                fileURL: fileURL,
+                fileName: fileName,
+                mimeType: mimeType
+            )
+
+            let finalAttachment = MessageAttachment(
+                id: attId,
+                fileName: fileName,
+                mimeType: mimeType,
+                byteSize: fileSize,
+                keyBase64: keyBase64,
+                ivBase64: ivBase64,
+                sha256Checksum: sha256,
+                downloadUrl: downloadUrl,
+                localDecryptedPath: fileURL.path
+            )
+
+            // 3. Encrypt message envelope with attachment
+            let (payload, iv, envType) = try MessageCryptoCoordinator.shared.encryptMessage(
+                conversationId: conversation.id,
+                text: "",
+                replyToMessageId: replyId,
+                attachment: finalAttachment,
+                isGroup: conversation.type == "group"
+            )
+
+            struct SubmitBody: Codable {
+                let id: String
+                let envelope_type: String
+                let encrypted_payload: String
+                let iv: String
+                let reply_to_message_id: String?
+            }
+
+            struct SubmitResponse: Codable {
+                let id: String
+                let sequence_id: Int64
+                let status: String
+                let deduplicated: Bool
+            }
+
+            let res: SubmitResponse = try await APIClient.shared.request(
+                endpoint: "/conversations/\(conversation.id)/messages",
+                method: "POST",
+                body: SubmitBody(
+                    id: messageId,
+                    envelope_type: envType,
+                    encrypted_payload: payload,
+                    iv: iv,
+                    reply_to_message_id: replyId
+                ),
+                requiresAuth: true
+            )
+
+            var updated = optimisticMessage
+            updated.attachment = finalAttachment
+            updated.status = .sent
+            updated.sequenceId = res.sequence_id
+            LocalDatabaseManager.shared.saveMessage(updated)
+            loadLocalMessages()
+        } catch {
+            print("[ChatViewModel] sendAttachment error: \(error.localizedDescription)")
+            LocalDatabaseManager.shared.updateMessageStatus(
+                messageId: messageId,
+                conversationId: conversation.id,
+                status: .failed
+            )
+            loadLocalMessages()
+        }
+    }
+
+    public func sendVoiceNote(
+        fileURL: URL,
+        duration: TimeInterval,
+        waveform: [Float],
+        currentUserId: String,
+        currentUsername: String
+    ) async {
+        let messageId = UUID().uuidString
+        let replyId = replyingToMessage?.id
+        let replyPreview = replyingToMessage?.text
+        let voiceMetadata = VoiceNoteMetadata(durationSeconds: duration, waveformSamples: waveform)
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int64) ?? 0
+
+        let optimisticAttachment = MessageAttachment(
+            id: UUID().uuidString,
+            fileName: "voice_\(Date().timeIntervalSince1970).m4a",
+            mimeType: "audio/m4a",
+            byteSize: fileSize,
+            keyBase64: "",
+            ivBase64: "",
+            sha256Checksum: "",
+            downloadUrl: "",
+            localDecryptedPath: fileURL.path
+        )
+
+        let optimisticMessage = ChatMessage(
+            id: messageId,
+            conversationId: conversation.id,
+            senderUserId: currentUserId,
+            senderName: currentUsername,
+            text: "",
+            replyToMessageId: replyId,
+            replyPreview: replyPreview,
+            status: .sending,
+            timestamp: Date(),
+            isOutgoing: true,
+            attachment: optimisticAttachment,
+            voiceNote: voiceMetadata
+        )
+
+        LocalDatabaseManager.shared.saveMessage(optimisticMessage)
+        loadLocalMessages()
+        replyingToMessage = nil
+
+        do {
+            let (attId, keyBase64, ivBase64, sha256, downloadUrl) = try await AttachmentManager.shared.encryptAndUploadFile(
+                fileURL: fileURL,
+                fileName: optimisticAttachment.fileName,
+                mimeType: "audio/m4a"
+            )
+
+            let finalAttachment = MessageAttachment(
+                id: attId,
+                fileName: optimisticAttachment.fileName,
+                mimeType: "audio/m4a",
+                byteSize: fileSize,
+                keyBase64: keyBase64,
+                ivBase64: ivBase64,
+                sha256Checksum: sha256,
+                downloadUrl: downloadUrl,
+                localDecryptedPath: fileURL.path
+            )
+
+            let (payload, iv, envType) = try MessageCryptoCoordinator.shared.encryptMessage(
+                conversationId: conversation.id,
+                text: "",
+                replyToMessageId: replyId,
+                attachment: finalAttachment,
+                voiceNote: voiceMetadata,
+                isGroup: conversation.type == "group"
+            )
+
+            struct SubmitBody: Codable {
+                let id: String
+                let envelope_type: String
+                let encrypted_payload: String
+                let iv: String
+                let reply_to_message_id: String?
+            }
+
+            struct SubmitResponse: Codable {
+                let id: String
+                let sequence_id: Int64
+                let status: String
+                let deduplicated: Bool
+            }
+
+            let res: SubmitResponse = try await APIClient.shared.request(
+                endpoint: "/conversations/\(conversation.id)/messages",
+                method: "POST",
+                body: SubmitBody(
+                    id: messageId,
+                    envelope_type: envType,
+                    encrypted_payload: payload,
+                    iv: iv,
+                    reply_to_message_id: replyId
+                ),
+                requiresAuth: true
+            )
+
+            var updated = optimisticMessage
+            updated.attachment = finalAttachment
+            updated.status = .sent
+            updated.sequenceId = res.sequence_id
+            LocalDatabaseManager.shared.saveMessage(updated)
+            loadLocalMessages()
+        } catch {
+            print("[ChatViewModel] sendVoiceNote error: \(error.localizedDescription)")
             LocalDatabaseManager.shared.updateMessageStatus(
                 messageId: messageId,
                 conversationId: conversation.id,

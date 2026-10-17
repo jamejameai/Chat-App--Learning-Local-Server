@@ -2,6 +2,8 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
+  Patch,
   Param,
   Body,
   Query,
@@ -51,5 +53,33 @@ export class ConversationsController {
       sinceSequence ? parseInt(sinceSequence.toString(), 10) : 0,
       limit ? parseInt(limit.toString(), 10) : 50,
     );
+  }
+
+  @Post(':id/members')
+  async addMembers(
+    @CurrentUser('userId') userId: string,
+    @Param('id') conversationId: string,
+    @Body('user_ids') userIds: string[],
+  ) {
+    return await this.conversationsService.addMembers(conversationId, userId, userIds || []);
+  }
+
+  @Delete(':id/members/:targetUserId')
+  async removeMember(
+    @CurrentUser('userId') userId: string,
+    @Param('id') conversationId: string,
+    @Param('targetUserId') targetUserId: string,
+  ) {
+    return await this.conversationsService.removeMember(conversationId, userId, targetUserId);
+  }
+
+  @Patch(':id/members/:targetUserId')
+  async updateMemberRole(
+    @CurrentUser('userId') userId: string,
+    @Param('id') conversationId: string,
+    @Param('targetUserId') targetUserId: string,
+    @Body('role') role: 'admin' | 'member' | 'read_only',
+  ) {
+    return await this.conversationsService.updateMemberRole(conversationId, userId, targetUserId, role);
   }
 }

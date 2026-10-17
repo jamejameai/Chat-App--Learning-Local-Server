@@ -86,7 +86,15 @@ public final class LocalDatabaseManager: @unchecked Sendable {
 
         // Update conversation summary
         if var conv = conversations[message.conversationId] {
-            conv.lastMessageText = message.text
+            if !message.text.isEmpty {
+                conv.lastMessageText = message.text
+            } else if let vn = message.voiceNote {
+                conv.lastMessageText = "🎤 Voice message (\(Int(vn.durationSeconds))s)"
+            } else if let att = message.attachment {
+                conv.lastMessageText = "📎 \(att.fileName)"
+            } else {
+                conv.lastMessageText = "Message"
+            }
             conv.lastMessageTimestamp = message.timestamp
             if message.sequenceId > conv.lastSequenceId {
                 conv.lastSequenceId = message.sequenceId

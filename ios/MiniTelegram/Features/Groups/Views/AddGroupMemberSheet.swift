@@ -33,7 +33,7 @@ public struct AddGroupMemberSheet: View {
                         ForEach(availableMembers) { member in
                             let isSelected = selectedUserIds.contains(member.id)
                             HStack(spacing: AppSpacing.sm) {
-                                AvatarView(name: member.title, size: 36)
+                                AvatarView(name: member.title, avatarUrl: member.avatarUrl, size: 36)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(member.title)

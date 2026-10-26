@@ -51,3 +51,8 @@ minio-data/
 uploads/
 coturn-data/
 scratch/
+
+# Temporary runtime files & dumps
+*.pid
+scripts/*.sql
+

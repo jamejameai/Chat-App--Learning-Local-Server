@@ -83,6 +83,12 @@ Mini Telegram is built under the principle of **Defense in Depth** and **Zero-Tr
 
 ## 4. Local iOS Security
 
+### 4.0 Live Location Privacy
+- Location access is explained before the iOS permission prompt. OS permission alone never starts sharing; the user must explicitly start and can stop sharing at any time.
+- Background sharing requires the user to allow Always location access. The app explains that sharing is visible only to friends explicitly selected for the current sharing session and includes a persistent stop control.
+- The server stores one current coordinate per sharing account, with no route history. Read and realtime delivery require both an explicit session audience grant and a current mutual accepted friendship; adding a friend later does not grant access. Removing a friendship atomically removes its location grant; public/global presence never includes coordinates.
+- Stopping sharing deletes the current coordinate and audience grants, then emits a stop event only to the selected audience and the owner's devices. Logout clears the server location before credentials are removed. A 256-bit stop-only capability is kept in the device Keychain and stored server-side only as a hash, allowing the app to revoke the share after its login session expires without granting any read access. Pending revocations are retried when the app starts and refreshes live locations. Coordinates are not included in push notifications.
+
 ### 4.1 Apple Keychain Protections
 - Device Identity Keys, private Prekeys, and session JWTs are stored in the iOS Keychain using:
   - `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`: Prevents extraction across device restores or iTunes backups.

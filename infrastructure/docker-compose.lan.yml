@@ -1,0 +1,118 @@
+# ============================================================================
+# Our Chat — Home-LAN stack (Ubuntu server, plain HTTP on the local network)
+# ============================================================================
+# Deployed by scripts/deploy-lan.sh. Secrets come from infrastructure/.env,
+# livekit.lan.yaml and coturn/turnserver.lan.conf, which the script generates
+# ON THE SERVER only (never committed). Postgres is not published to the host.
+# ============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: minitelegram-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${DB_USER:-minitelegram}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - POSTGRES_DB=${DB_NAME:-minitelegram_db}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-minitelegram} -d ${DB_NAME:-minitelegram_db}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - minitelegram-net
+
+  backend:
+    build:
+      context: ../server
+      dockerfile: Dockerfile
+    container_name: minitelegram-backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=${DB_USER:-minitelegram}
+      - DB_PASSWORD=${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      - DB_NAME=${DB_NAME:-minitelegram_db}
+      - JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET must be set in .env}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:?JWT_REFRESH_SECRET must be set in .env}
+      - STORAGE_DRIVER=local
+      - STORAGE_LOCAL_PATH=/uploads
+      - PUBLIC_URL=${PUBLIC_URL:?PUBLIC_URL must be set in .env}
+      - TUNNEL_METRICS_URL=http://tunnel:2000
+      # Fixed internet address handed to the app (Tailscale Funnel), ahead of the quick tunnel
+      - PUBLIC_API_URL=${PUBLIC_API_URL:-}
+      # Where phones connect for calls: LiveKit Cloud when LIVEKIT_CLOUD_* are set in .env
+      # (scripts/set-livekit-cloud.sh), otherwise the LiveKit on this server (written by deploy-lan.sh)
+      - LIVEKIT_PUBLIC_URL=${LIVEKIT_CLOUD_URL:-${LIVEKIT_PUBLIC_URL:-}}
+      - LIVEKIT_API_KEY=${LIVEKIT_CLOUD_API_KEY:-${LIVEKIT_API_KEY:-devkey}}
+      - LIVEKIT_API_SECRET=${LIVEKIT_CLOUD_API_SECRET:-${LIVEKIT_API_SECRET:?LIVEKIT_API_SECRET must be set in .env}}
+      # Alerts while the app is closed go through the free Bark app; set this in .env only to use
+      # a self-hosted bark-server instead of the public one
+      - BARK_SERVER_URL=${BARK_SERVER_URL:-https://api.day.app}
+      # OurChat.ipa for GET /api/v1/download, uploaded by scripts/publish-ipa.sh
+      - IPA_PATH=/downloads/OurChat.ipa
+    ports:
+      - "3001:3000"
+    volumes:
+      - encrypted-uploads:/uploads
+      - ../downloads:/downloads:ro
+    networks:
+      - minitelegram-net
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Cloudflare quick tunnel: makes the API reachable from the internet over HTTPS
+  # (no router changes, no account). The https://<random>.trycloudflare.com address
+  # changes whenever this container restarts; the backend publishes the current one at
+  # GET /api/v1/network/config and the app learns it while on the home network.
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.1
+    container_name: minitelegram-tunnel
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:2000 --url http://backend:3000
+    networks:
+      - minitelegram-net
+    depends_on:
+      - backend
+
+  livekit:
+    image: livekit/livekit-server:v1.7.2
+    container_name: minitelegram-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.lan.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50050:50000-50050/udp"
+    networks:
+      - minitelegram-net
+
+  coturn:
+    image: coturn/coturn:4.6.2-alpine
+    container_name: minitelegram-coturn
+    restart: unless-stopped
+    volumes:
+      - ./coturn/turnserver.lan.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3478:3478/tcp"
+      - "3478:3478/udp"
+      - "49152-49200:49152-49200/udp"
+    networks:
+      - minitelegram-net
+
+networks:
+  minitelegram-net:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  encrypted-uploads:

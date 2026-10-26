@@ -155,5 +155,47 @@ describe('AuthService', () => {
         authService.login({ username: 'bad_actor', password: 'CorrectPassword123!' }),
       ).rejects.toThrow('Account has been suspended or deactivated');
     });
+
+    describe('updateProfile', () => {
+      it('stores developer profile JSON and returns it with the updated user', async () => {
+        const developerProfile = {
+          headline: 'iOS Developer',
+          skills: ['Swift', 'SwiftUI'],
+          projects: [
+            {
+              id: 'project-1',
+              title: 'Our Chat',
+              summary: 'A private messaging app',
+              technologies: ['SwiftUI'],
+              repository_url: 'https://github.com/example/our-chat',
+              live_url: 'https://example.com',
+            },
+          ],
+          website_url: 'https://example.com',
+          github_url: 'https://github.com/example',
+          social_links: {
+            linkedin_url: 'https://linkedin.com/in/example',
+            instagram_url: null,
+            x_url: null,
+          },
+          currently_building: 'A new app',
+          work_availability: 'open_to_opportunities',
+          location: 'Phnom Penh',
+        };
+        dbMock.query.mockResolvedValueOnce({
+          rows: [{ id: 'u-1', developer_profile: developerProfile }],
+        });
+
+        const result = await authService.updateProfile('u-1', {
+          developer_profile: developerProfile,
+        } as any);
+
+        expect(dbMock.query).toHaveBeenCalledWith(
+          expect.stringContaining('developer_profile = $1::jsonb'),
+          [JSON.stringify(developerProfile), 'u-1'],
+        );
+        expect(result.developer_profile).toEqual(developerProfile);
+      });
+    });
   });
 });

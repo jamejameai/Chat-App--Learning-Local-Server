@@ -89,7 +89,7 @@ public final class GroupsViewModel: ObservableObject {
         struct CreateGroupBody: Codable {
             let type: String
             let title: String
-            let member_user_ids: [String]
+            let participant_user_ids: [String]
         }
 
         struct CreateGroupResponse: Codable {
@@ -107,7 +107,7 @@ public final class GroupsViewModel: ObservableObject {
                 body: CreateGroupBody(
                     type: "group",
                     title: title,
-                    member_user_ids: memberUserIds
+                    participant_user_ids: memberUserIds
                 ),
                 requiresAuth: true
             )

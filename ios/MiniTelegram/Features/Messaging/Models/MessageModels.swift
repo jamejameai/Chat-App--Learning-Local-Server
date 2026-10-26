@@ -71,6 +71,8 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
     public let senderUserId: String
     public let senderDeviceId: String
     public let senderName: String
+    public var senderRole: String?
+    public var senderNameColor: String?
     public var sequenceId: Int64
     public var text: String
     public let replyToMessageId: String?
@@ -88,6 +90,8 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
         senderUserId: String,
         senderDeviceId: String = "",
         senderName: String,
+        senderRole: String? = nil,
+        senderNameColor: String? = nil,
         sequenceId: Int64 = 0,
         text: String,
         replyToMessageId: String? = nil,
@@ -104,6 +108,8 @@ public struct ChatMessage: Codable, Identifiable, Hashable, Sendable {
         self.senderUserId = senderUserId
         self.senderDeviceId = senderDeviceId
         self.senderName = senderName
+        self.senderRole = senderRole
+        self.senderNameColor = senderNameColor
         self.sequenceId = sequenceId
         self.text = text
         self.replyToMessageId = replyToMessageId
@@ -128,8 +134,24 @@ public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
     public var lastSequenceId: Int64
     public var isPinned: Bool
     public var isOnline: Bool
+    public var lastSeen: Date?
     public var recipientUserId: String?
+    public var recipientRole: String?
+    public var recipientBorderTemplate: String?
+    public var recipientNameColor: String?
     public var memberCount: Int
+
+    public var isRecipientDeveloper: Bool {
+        recipientRole == "owner" || (recipientUserId != nil && recipientUserId == "jame.kh") || title.lowercased().contains("jame")
+    }
+
+    public var isRecipientOwner: Bool {
+        recipientRole == "owner" || (recipientUserId != nil && recipientUserId == "jame.kh") || title.lowercased().contains("jame")
+    }
+
+    public var borderTemplateEnum: ProfileBorderTemplate {
+        ProfileBorderTemplate.from(raw: recipientBorderTemplate)
+    }
 
     public init(
         id: String,
@@ -142,7 +164,11 @@ public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
         lastSequenceId: Int64 = 0,
         isPinned: Bool = false,
         isOnline: Bool = false,
+        lastSeen: Date? = nil,
         recipientUserId: String? = nil,
+        recipientRole: String? = nil,
+        recipientBorderTemplate: String? = nil,
+        recipientNameColor: String? = nil,
         memberCount: Int = 1
     ) {
         self.id = id
@@ -155,7 +181,11 @@ public struct ConversationItem: Codable, Identifiable, Hashable, Sendable {
         self.lastSequenceId = lastSequenceId
         self.isPinned = isPinned
         self.isOnline = isOnline
+        self.lastSeen = lastSeen
         self.recipientUserId = recipientUserId
+        self.recipientRole = recipientRole
+        self.recipientBorderTemplate = recipientBorderTemplate
+        self.recipientNameColor = recipientNameColor
         self.memberCount = memberCount
     }
 }

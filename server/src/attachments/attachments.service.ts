@@ -12,7 +12,12 @@ import * as crypto from 'crypto';
 @Injectable()
 export class AttachmentsService {
   private readonly logger = new Logger(AttachmentsService.name);
-  private readonly uploadDirectory = path.resolve(process.cwd(), 'uploads/attachments');
+  // On the persistent storage volume (STORAGE_LOCAL_PATH=/uploads in Docker), so files survive
+  // server updates; the container's own folder is wiped on every rebuild.
+  private readonly uploadDirectory = path.resolve(
+    process.env.STORAGE_LOCAL_PATH || path.join(process.cwd(), 'uploads'),
+    'attachments',
+  );
 
   constructor(private readonly db: DatabaseService) {
     if (!fs.existsSync(this.uploadDirectory)) {

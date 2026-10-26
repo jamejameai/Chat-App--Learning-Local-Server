@@ -4,6 +4,12 @@ public struct ConversationListView: View {
     @EnvironmentObject private var appState: AppState
     @StateObject private var viewModel = ConversationsViewModel()
     @State private var selectedConversation: ConversationItem?
+    @State private var profileConversation: ConversationItem?
+    @State private var storyViewerStart: StoryViewerStart?
+    @State private var isPresentingNewGroup = false
+    @State private var wantsNewGroupAfterSheet = false
+    @State private var createdGroup: ConversationItem?
+    @ObservedObject private var stories = StoriesStore.shared
 
     public init() {}
 
@@ -71,6 +77,7 @@ public struct ConversationListView: View {
             } else if viewModel.conversations.isEmpty && !viewModel.isLoading {
                 // Empty state with quick start button
                 VStack(spacing: AppSpacing.md) {
+                    StoriesBarView()
                     EmptyStateView(
                         icon: "bubble.left.and.bubble.right",
                         title: L("chats_empty_title"),
@@ -84,25 +91,67 @@ public struct ConversationListView: View {
                         viewModel.isPresentingNewChat = true
                     }
                     .frame(maxWidth: 240)
+
+                    Button {
+                        isPresentingNewGroup = true
+                    } label: {
+                        Label("New Group", systemImage: "person.3.fill")
+                            .font(AppTypography.subheadline.weight(.semibold))
+                            .foregroundColor(AppColors.accent)
+                    }
                 }
             } else {
-                // Conversation Rows
-                List(viewModel.conversations) { conv in
-                    NavigationLink(destination: ChatDetailView(conversation: conv)) {
-                        ConversationRowView(conversation: conv)
+                // Conversation Rows, with the stories scrolling along at the top
+                List {
+                    StoriesBarView()
+                        .listRowInsets(EdgeInsets())
+                        .listRowSeparator(.hidden)
+
+                    ForEach(viewModel.conversations) { conv in
+                        NavigationLink(destination: ChatDetailView(conversation: conv)) {
+                            ConversationRowView(conversation: conv)
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                        .contextMenu {
+                            if let userId = conv.recipientUserId, stories.stories(for: userId) != nil {
+                                Button {
+                                    storyViewerStart = StoryViewerStart(id: userId)
+                                } label: {
+                                    Label("View Story", systemImage: "circle.dashed.inset.filled")
+                                }
+                            }
+                            // Long-press a 1:1 chat to see the person's profile
+                            if conv.recipientUserId != nil {
+                                Button {
+                                    profileConversation = conv
+                                } label: {
+                                    Label("View Profile", systemImage: "person.crop.circle")
+                                }
+                            }
+                        }
                     }
-                    .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
                 }
                 .listStyle(.plain)
                 .refreshable {
-                    await viewModel.refreshConversations()
+                    async let chats: Void = viewModel.refreshConversations()
+                    async let feed: Void = stories.load()
+                    _ = await (chats, feed)
                 }
             }
         }
         .navigationTitle(L("chats_title"))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button(action: {
+                    isPresentingNewGroup = true
+                }) {
+                    Image(systemName: "person.2.badge.plus")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppColors.accent)
+                }
+                .accessibilityLabel("New Group")
+
                 Button(action: {
                     viewModel.isPresentingNewChat = true
                 }) {
@@ -110,19 +159,76 @@ public struct ConversationListView: View {
                         .font(.system(size: 17, weight: .semibold))
                         .foregroundColor(AppColors.accent)
                 }
+                .accessibilityLabel("New Message")
             }
         }
-        .sheet(isPresented: $viewModel.isPresentingNewChat) {
+        .sheet(isPresented: $viewModel.isPresentingNewChat, onDismiss: {
+            // "New Group" inside the sheet: open the group sheet once this one has gone
+            if wantsNewGroupAfterSheet {
+                wantsNewGroupAfterSheet = false
+                isPresentingNewGroup = true
+            }
+        }) {
             NewConversationSheet(
                 viewModel: viewModel,
-                selectedConversation: $selectedConversation
+                selectedConversation: $selectedConversation,
+                onNewGroup: {
+                    wantsNewGroupAfterSheet = true
+                    viewModel.isPresentingNewChat = false
+                }
             )
+        }
+        .sheet(isPresented: $isPresentingNewGroup, onDismiss: {
+            // Open the new group once the sheet has gone
+            if let group = createdGroup {
+                createdGroup = nil
+                selectedConversation = group
+            }
+        }) {
+            CreateGroupSheet { group in
+                createdGroup = group
+                viewModel.loadLocalConversations()
+                Task { await viewModel.refreshConversations() }
+            }
         }
         .navigationDestination(item: $selectedConversation) { conv in
             ChatDetailView(conversation: conv)
         }
         .task {
+            stories.refresh()
             await viewModel.refreshConversations()
+        }
+        .fullScreenCover(item: $storyViewerStart) { start in
+            StoryViewerView(groups: stories.feed, startUserId: start.id)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openConversationRequested)) { _ in
+            openPendingConversation()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .contactNicknamesChanged)) { _ in
+            viewModel.loadLocalConversations() // re-render rows with the new nickname
+        }
+        .onAppear {
+            // A notification tap that launched the app arrives before this screen exists
+            openPendingConversation()
+        }
+        .sheet(item: $profileConversation) { conv in
+            if let userId = conv.recipientUserId {
+                FriendProfileView(userId: userId, name: conv.title, avatarUrl: conv.avatarUrl)
+            }
+        }
+    }
+
+    /// Opens the chat of a tapped message notification.
+    private func openPendingConversation() {
+        guard let conversationId = MessageAlertManager.shared.pendingConversationId else { return }
+        MessageAlertManager.shared.pendingConversationId = nil
+        if let conv = LocalDatabaseManager.shared.getConversation(byId: conversationId) {
+            selectedConversation = conv
+        } else {
+            Task {
+                await viewModel.refreshConversations()
+                selectedConversation = viewModel.conversations.first { $0.id == conversationId }
+            }
         }
     }
 
@@ -136,14 +242,31 @@ public struct ConversationListView: View {
 // Conversation Row Component
 public struct ConversationRowView: View {
     public let conversation: ConversationItem
+    @ObservedObject private var stories = StoriesStore.shared
+    @ObservedObject private var presence = PresenceManager.shared
+
+    private var isOnline: Bool {
+        presence.isOnline(conversation.recipientUserId, fallback: conversation.isOnline)
+    }
+
+    public init(conversation: ConversationItem) {
+        self.conversation = conversation
+    }
 
     public var body: some View {
         HStack(spacing: AppSpacing.sm) {
             // Avatar with Online Badge
             ZStack(alignment: .bottomTrailing) {
-                AvatarView(name: conversation.title, size: 52)
+                // Coloured ring when this person has a story you haven't seen
+                StoryRingAvatar(
+                    name: conversation.title,
+                    avatarUrl: conversation.avatarUrl,
+                    size: 50,
+                    ring: stories.ringState(for: conversation.recipientUserId),
+                    borderTemplate: conversation.borderTemplateEnum
+                )
 
-                if conversation.isOnline {
+                if isOnline {
                     Circle()
                         .fill(AppColors.statusOnline)
                         .frame(width: 14, height: 14)
@@ -153,11 +276,15 @@ public struct ConversationRowView: View {
 
             // Info
             VStack(alignment: .leading, spacing: 4) {
-                HStack {
-                    Text(conversation.title)
-                        .font(AppTypography.headline)
-                        .foregroundColor(AppColors.textPrimary)
-                        .lineLimit(1)
+                HStack(spacing: 6) {
+                    AccountDisplayNameView(
+                        name: ContactNicknames.displayName(userId: conversation.recipientUserId, fallback: conversation.title),
+                        isDeveloper: conversation.isRecipientDeveloper,
+                        isOwner: conversation.isRecipientOwner,
+                        nameColorHex: conversation.recipientNameColor,
+                        font: AppTypography.headline,
+                        color: AppColors.textPrimary
+                    )
 
                     if conversation.isPinned {
                         Image(systemName: "pin.fill")

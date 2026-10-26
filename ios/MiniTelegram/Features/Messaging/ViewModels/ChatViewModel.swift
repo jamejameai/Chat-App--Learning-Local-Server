@@ -14,6 +14,7 @@ public final class ChatViewModel: ObservableObject {
 
     private var typingTimer: Timer?
     private var isCurrentlyTyping: Bool = false
+    private var cancellables = Set<AnyCancellable>()
 
     public init(conversation: ConversationItem) {
         self.conversation = conversation
@@ -24,16 +25,23 @@ public final class ChatViewModel: ObservableObject {
     public func loadLocalMessages() {
         self.messages = LocalDatabaseManager.shared.getMessages(conversationId: conversation.id)
         LocalDatabaseManager.shared.markConversationRead(conversationId: conversation.id)
+
+        // On screen = seen: drop this chat's notifications (only while the app is really open,
+        // so a banner shown while in the background is not removed straight away)
+        if UIApplication.shared.applicationState == .active {
+            MessageAlertManager.shared.clearNotifications(conversationId: conversation.id)
+        }
     }
 
     public func syncMessages() async {
-        let lastSeq = conversation.lastSequenceId
+        let lastSeq = LocalDatabaseManager.shared.latestStoredSequenceId(conversationId: conversation.id)
         struct SyncResponse: Codable {
             struct RawMsg: Codable {
                 let id: String
                 let sender_user_id: String
                 let sender_device_id: String?
                 let sender_username: String?
+                let sender_display_name: String?
                 let sequence_id: String
                 let envelope_type: String
                 let encrypted_payload: String
@@ -43,9 +51,12 @@ public final class ChatViewModel: ObservableObject {
             }
             let conversation_id: String
             let messages: [RawMsg]
-            let latest_sequence_id: Int64
+            let latest_sequence_id: FlexibleInt64
+            /// How far the other members have read (drives "Seen" on my messages)
+            let read_up_to_sequence_id: FlexibleInt64?
             let has_more: Bool
         }
+        let myUserId = SessionStore.currentUserId
 
         do {
             let res: SyncResponse = try await APIClient.shared.request(
@@ -69,18 +80,21 @@ public final class ChatViewModel: ObservableObject {
                 let seq = Int64(raw.sequence_id) ?? 0
                 let timestamp = dateFormatter.date(from: raw.created_at) ?? Date()
 
+                // Mine (e.g. sent from another device) or theirs. Theirs arrive as "delivered", so viewing
+                // them sends a read receipt and the sender sees "Seen".
+                let isMine = myUserId != nil && raw.sender_user_id == myUserId
                 let msg = ChatMessage(
                     id: raw.id,
                     conversationId: conversation.id,
                     senderUserId: raw.sender_user_id,
                     senderDeviceId: raw.sender_device_id ?? "",
-                    senderName: raw.sender_username ?? "Team Member",
+                    senderName: raw.sender_display_name ?? raw.sender_username ?? "Friend",
                     sequenceId: seq,
                     text: decrypted.text,
                     replyToMessageId: raw.reply_to_message_id ?? decrypted.replyToMessageId,
-                    status: .read,
+                    status: isMine ? .sent : .delivered,
                     timestamp: timestamp,
-                    isOutgoing: false,
+                    isOutgoing: isMine,
                     attachment: decrypted.attachment,
                     voiceNote: decrypted.voiceNote
                 )
@@ -88,7 +102,16 @@ public final class ChatViewModel: ObservableObject {
             }
 
             LocalDatabaseManager.shared.saveMessages(newChatMessages, for: conversation.id)
+            LocalDatabaseManager.shared.markOutgoingRead(
+                conversationId: conversation.id,
+                upToSequence: res.read_up_to_sequence_id?.value ?? 0
+            )
             loadLocalMessages()
+
+            // More than one page missed: keep going (the cursor advances with every saved page)
+            if res.has_more, !newChatMessages.isEmpty {
+                await syncMessages()
+            }
         } catch {
             print("[ChatViewModel] syncMessages error: \(error.localizedDescription)")
         }
@@ -98,7 +121,9 @@ public final class ChatViewModel: ObservableObject {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let messageId = UUID().uuidString
+        // Lowercase: the server stores ids as UUIDs and returns them lowercase; matching case keeps
+        // one local copy per message (sync, receipts and "Seen" all match by id)
+        let messageId = UUID().uuidString.lowercased()
         let replyId = replyingToMessage?.id
         let replyPreview = replyingToMessage?.text
 
@@ -126,7 +151,7 @@ public final class ChatViewModel: ObservableObject {
 
         // 2. Encrypt message envelope
         do {
-            let (payload, iv, envType) = try MessageCryptoCoordinator.shared.encryptMessage(
+            let (payload, iv, _) = try MessageCryptoCoordinator.shared.encryptMessage(
                 conversationId: conversation.id,
                 text: trimmed,
                 replyToMessageId: replyId,
@@ -143,7 +168,7 @@ public final class ChatViewModel: ObservableObject {
 
             struct SubmitResponse: Codable {
                 let id: String
-                let sequence_id: Int64
+                let sequence_id: FlexibleInt64
                 let status: String
                 let deduplicated: Bool
             }
@@ -153,7 +178,7 @@ public final class ChatViewModel: ObservableObject {
                 method: "POST",
                 body: SubmitBody(
                     id: messageId,
-                    envelope_type: envType,
+                    envelope_type: "e2ee_text", // wire kind the server accepts; crypto scheme is auto-detected on receive
                     encrypted_payload: payload,
                     iv: iv,
                     reply_to_message_id: replyId
@@ -164,9 +189,10 @@ public final class ChatViewModel: ObservableObject {
             // 3. Update status to sent with sequence ID
             var updated = optimisticMessage
             updated.status = .sent
-            updated.sequenceId = res.sequence_id
+            updated.sequenceId = res.sequence_id.value
             LocalDatabaseManager.shared.saveMessage(updated)
             loadLocalMessages()
+            MessageAlertManager.shared.playSentSound()
         } catch {
             print("[ChatViewModel] sendMessage error: \(error.localizedDescription)")
             LocalDatabaseManager.shared.updateMessageStatus(
@@ -185,7 +211,9 @@ public final class ChatViewModel: ObservableObject {
         currentUserId: String,
         currentUsername: String
     ) async {
-        let messageId = UUID().uuidString
+        // Lowercase: the server stores ids as UUIDs and returns them lowercase; matching case keeps
+        // one local copy per message (sync, receipts and "Seen" all match by id)
+        let messageId = UUID().uuidString.lowercased()
         let replyId = replyingToMessage?.id
         let replyPreview = replyingToMessage?.text
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int64) ?? 0
@@ -242,7 +270,7 @@ public final class ChatViewModel: ObservableObject {
             )
 
             // 3. Encrypt message envelope with attachment
-            let (payload, iv, envType) = try MessageCryptoCoordinator.shared.encryptMessage(
+            let (payload, iv, _) = try MessageCryptoCoordinator.shared.encryptMessage(
                 conversationId: conversation.id,
                 text: "",
                 replyToMessageId: replyId,
@@ -260,7 +288,7 @@ public final class ChatViewModel: ObservableObject {
 
             struct SubmitResponse: Codable {
                 let id: String
-                let sequence_id: Int64
+                let sequence_id: FlexibleInt64
                 let status: String
                 let deduplicated: Bool
             }
@@ -270,7 +298,7 @@ public final class ChatViewModel: ObservableObject {
                 method: "POST",
                 body: SubmitBody(
                     id: messageId,
-                    envelope_type: envType,
+                    envelope_type: "e2ee_attachment", // wire kind the server accepts; crypto scheme is auto-detected on receive
                     encrypted_payload: payload,
                     iv: iv,
                     reply_to_message_id: replyId
@@ -281,7 +309,7 @@ public final class ChatViewModel: ObservableObject {
             var updated = optimisticMessage
             updated.attachment = finalAttachment
             updated.status = .sent
-            updated.sequenceId = res.sequence_id
+            updated.sequenceId = res.sequence_id.value
             LocalDatabaseManager.shared.saveMessage(updated)
             loadLocalMessages()
         } catch {
@@ -302,7 +330,9 @@ public final class ChatViewModel: ObservableObject {
         currentUserId: String,
         currentUsername: String
     ) async {
-        let messageId = UUID().uuidString
+        // Lowercase: the server stores ids as UUIDs and returns them lowercase; matching case keeps
+        // one local copy per message (sync, receipts and "Seen" all match by id)
+        let messageId = UUID().uuidString.lowercased()
         let replyId = replyingToMessage?.id
         let replyPreview = replyingToMessage?.text
         let voiceMetadata = VoiceNoteMetadata(durationSeconds: duration, waveformSamples: waveform)
@@ -358,7 +388,7 @@ public final class ChatViewModel: ObservableObject {
                 localDecryptedPath: fileURL.path
             )
 
-            let (payload, iv, envType) = try MessageCryptoCoordinator.shared.encryptMessage(
+            let (payload, iv, _) = try MessageCryptoCoordinator.shared.encryptMessage(
                 conversationId: conversation.id,
                 text: "",
                 replyToMessageId: replyId,
@@ -377,7 +407,7 @@ public final class ChatViewModel: ObservableObject {
 
             struct SubmitResponse: Codable {
                 let id: String
-                let sequence_id: Int64
+                let sequence_id: FlexibleInt64
                 let status: String
                 let deduplicated: Bool
             }
@@ -387,7 +417,7 @@ public final class ChatViewModel: ObservableObject {
                 method: "POST",
                 body: SubmitBody(
                     id: messageId,
-                    envelope_type: envType,
+                    envelope_type: "e2ee_voice", // wire kind the server accepts; crypto scheme is auto-detected on receive
                     encrypted_payload: payload,
                     iv: iv,
                     reply_to_message_id: replyId
@@ -398,7 +428,7 @@ public final class ChatViewModel: ObservableObject {
             var updated = optimisticMessage
             updated.attachment = finalAttachment
             updated.status = .sent
-            updated.sequenceId = res.sequence_id
+            updated.sequenceId = res.sequence_id.value
             LocalDatabaseManager.shared.saveMessage(updated)
             loadLocalMessages()
         } catch {
@@ -468,6 +498,36 @@ public final class ChatViewModel: ObservableObject {
 
     private func setupRealtime() {
         RealtimeService.shared.joinConversation(conversationId: conversation.id)
+
+        // Live messages for this chat (RealtimeService has already saved them)
+        NotificationCenter.default.publisher(for: .chatMessageReceived)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] note in
+                guard let self,
+                      let message = note.object as? ChatMessage,
+                      message.conversationId == self.conversation.id else { return }
+                self.loadLocalMessages()
+            }
+            .store(in: &cancellables)
+
+        // The other person saw my messages ("Seen")
+        NotificationCenter.default.publisher(for: .messageStatusChanged)
+            .receive(on: RunLoop.main)
+            .sink { [weak self] note in
+                guard let self, (note.object as? String) == self.conversation.id else { return }
+                self.loadLocalMessages()
+            }
+            .store(in: &cancellables)
+
+        // Fetch anything missed while the connection was down or the app was in the background
+        NotificationCenter.default.publisher(for: .realtimeReconnected)
+            .merge(with: NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification))
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task { await self.syncMessages() }
+            }
+            .store(in: &cancellables)
 
         RealtimeService.shared.onReceiptReceived = { [weak self] msgId, convId, status in
             guard let self = self, convId == self.conversation.id else { return }

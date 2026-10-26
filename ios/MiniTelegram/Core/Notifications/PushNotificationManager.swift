@@ -112,4 +112,22 @@ public final class PushNotificationManager: NSObject, @unchecked Sendable, UNUse
         // Show banner and play sound even if app is in foreground
         completionHandler([.banner, .badge, .sound])
     }
+
+    /// Tapping a message notification opens that chat.
+    public func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        if let conversationId = response.notification.request.content.userInfo["conversation_id"] as? String {
+            DispatchQueue.main.async {
+                // Kept until the chat list exists (the tap may have launched the app)
+                MainActor.assumeIsolated {
+                    MessageAlertManager.shared.pendingConversationId = conversationId
+                }
+                NotificationCenter.default.post(name: .openConversationRequested, object: conversationId)
+            }
+        }
+        completionHandler()
+    }
 }

@@ -3,130 +3,96 @@ import SwiftUI
 public struct MainTabView: View {
     @EnvironmentObject private var appState: AppState
     @ObservedObject private var localization = LocalizationManager.shared
+    @Environment(\.scenePhase) private var scenePhase
+    @ObservedObject private var callManager = CallManager.shared
+    @State private var showBarkSetup = false
 
     public init() {}
 
     public var body: some View {
-        TabView(selection: $appState.selectedTab) {
-            NavigationStack {
-                ConversationListView()
-            }
-            .tabItem {
-                Label(L("tab_chats"), systemImage: "bubble.left.and.bubble.right.fill")
-            }
-            .tag(AppTab.chats)
+        ZStack(alignment: .top) {
+            TabView(selection: $appState.selectedTab) {
+                // Feature 1: Telegram-style Chat
+                NavigationStack {
+                    ConversationListView()
+                }
+                .tabItem {
+                    Label(L("tab_chats"), systemImage: "bubble.left.and.bubble.right.fill")
+                }
+                .tag(AppTab.chats)
 
-            NavigationStack {
-                CallsListView()
-            }
-            .tabItem {
-                Label(L("tab_calls"), systemImage: "phone.fill")
-            }
-            .tag(AppTab.calls)
+                // Feature 2: Instagram/Facebook-style Profile & Friends
+                NavigationStack {
+                    ProfileView()
+                }
+                .tabItem {
+                    Label("Profile", systemImage: "person.crop.circle.fill")
+                }
+                .tag(AppTab.profile)
 
-            NavigationStack {
-                GroupsListView()
-            }
-            .tabItem {
-                Label(L("tab_community"), systemImage: "person.2.fill")
-            }
-            .tag(AppTab.community)
+                NavigationStack {
+                    LiveLocationView()
+                }
+                .tabItem {
+                    Label("Live", systemImage: "location.north.circle.fill")
+                }
+                .tag(AppTab.liveLocation)
 
-            NavigationStack {
-                SettingsView()
+                // Feature 3: Settings for customize app & profile account
+                NavigationStack {
+                    SettingsView()
+                }
+                .tabItem {
+                    Label(L("tab_settings"), systemImage: "gearshape.fill")
+                }
+                .tag(AppTab.settings)
             }
-            .tabItem {
-                Label(L("tab_settings"), systemImage: "gearshape.fill")
-            }
-            .tag(AppTab.settings)
+            .tint(AppColors.accent)
+
+            // Luxury Real-time Heads-up Banner for Calls and Friend Alerts
+            LuxuryAlertBannerView()
+                .zIndex(999)
         }
-        .tint(AppColors.accent)
-    }
-}
+        // Incoming / active calls appear over any screen
+        .fullScreenCover(isPresented: Binding(
+            get: { callManager.activeCall != nil },
+            set: { _ in }
+        )) {
+            CallScreen()
+        }
+        .task {
+            // Logged in: keep the live connection open and alert on new messages
+            RealtimeService.shared.start()
+            MessageAlertManager.shared.start()
 
-// Subview Placeholders with full Design System & Empty States
-public struct ChatsPlaceholderView: View {
-    public var body: some View {
-        EmptyStateView(
-            icon: "bubble.left.and.bubble.right",
-            title: L("chats_empty_title"),
-            description: L("chats_empty_description")
-        )
-        .navigationTitle(L("chats_title"))
-        .navigationBarTitleDisplayMode(.large)
-    }
-}
-
-public struct CallsPlaceholderView: View {
-    public var body: some View {
-        EmptyStateView(
-            icon: "phone.badge.plus",
-            title: L("calls_empty_title"),
-            description: L("calls_empty_description")
-        )
-        .navigationTitle(L("calls_title"))
-        .navigationBarTitleDisplayMode(.large)
-    }
-}
-
-public struct GroupsPlaceholderView: View {
-    public var body: some View {
-        EmptyStateView(
-            icon: "person.3",
-            title: L("groups_title"),
-            description: L("chats_empty_description")
-        )
-        .navigationTitle(L("groups_title"))
-        .navigationBarTitleDisplayMode(.large)
-    }
-}
-
-public struct SettingsPlaceholderView: View {
-    @EnvironmentObject private var appState: AppState
-    @ObservedObject private var localization = LocalizationManager.shared
-
-    public var body: some View {
-        List {
-            Section(header: Text(L("settings_section_preferences"))) {
-                HStack {
-                    Text(L("settings_language"))
-                    Spacer()
-                    Picker("", selection: Binding(
-                        get: { localization.currentLanguage },
-                        set: { localization.setLanguage($0) }
-                    )) {
-                        ForEach(AppLanguage.allCases) { lang in
-                            Text(lang.displayName).tag(lang)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                }
-            }
-
-            Section(header: Text(L("settings_section_security"))) {
-                HStack {
-                    Image(systemName: "lock.shield.fill")
-                        .foregroundColor(AppColors.accent)
-                    Text(L("chat_e2ee_badge"))
-                    Spacer()
-                    Text("Verified")
-                        .font(AppTypography.caption)
-                        .foregroundColor(AppColors.statusOnline)
-                }
-            }
-
-            Section {
-                Button(role: .destructive, action: {
-                    appState.logout()
-                }) {
-                    HStack {
-                        Image(systemName: "rectangle.portrait.and.arrow.right")
-                        Text(L("settings_logout"))
-                    }
-                }
+            // Once per phone: offer alerts for when the app is closed, which iOS can't do for it
+            await BarkRelayManager.shared.refresh()
+            if let bark = BarkRelayManager.shared.settings, !bark.configured, !BarkRelayManager.setupPromptShown {
+                BarkRelayManager.setupPromptShown = true
+                showBarkSetup = true
             }
         }
-        .navigationTitle(L("settings_title"))
-        .navigationBarTitleDisplayMode(.large)
+        .sheet(isPresented: $showBarkSetup) {
+            NavigationStack {
+                BackgroundNotificationsView(isPrompt: true)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active:
+                RealtimeService.shared.reportAppState() // on screen: the server holds back Bark alerts
+                RealtimeService.shared.ensureConnected()
+                MessageAlertManager.shared.appDidBecomeActive()
+                Task { await BarkRelayManager.shared.refreshSystemPermission() }
+            case .background:
+                RealtimeService.shared.reportAppState() // off screen: alerts now go through Bark
+                MessageAlertManager.shared.appDidEnterBackground()
+            default:
+                break
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openConversationRequested)) { _ in
+            appState.selectedTab = .chats // ConversationListView opens the chat itself
+        }
     }
 }

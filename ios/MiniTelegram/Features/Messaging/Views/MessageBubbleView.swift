@@ -4,17 +4,42 @@ public struct MessageBubbleView: View {
     public let message: ChatMessage
     public let onReply: (ChatMessage) -> Void
     public let onReact: (ChatMessage, String) -> Void
+    /// Colours of this chat's theme
+    public var theme: ChatTheme
+    /// Group chats show who wrote each message; 1:1 chats don't need it
+    public var showSenderName: Bool
 
-    private let availableEmojis = ["❤️", "👍", "👎", "😂", "😮", "🙏"]
+    private let availableReactions: [(id: String, name: String, icon: String, color: Color)] = [
+        ("heart", "Heart", "heart.fill", Color(red: 1.0, green: 0.23, blue: 0.19)),
+        ("thumbsUp", "Like", "hand.thumbsup.fill", Color(red: 0.0, green: 0.48, blue: 1.0)),
+        ("flame", "Fire", "flame.fill", Color(red: 1.0, green: 0.58, blue: 0.0)),
+        ("star", "Star", "star.fill", Color(red: 1.0, green: 0.84, blue: 0.0)),
+        ("sparkles", "Sparkles", "sparkles", Color(red: 0.69, green: 0.32, blue: 0.87))
+    ]
 
     public init(
         message: ChatMessage,
+        theme: ChatTheme = .classic,
+        showSenderName: Bool = false,
         onReply: @escaping (ChatMessage) -> Void,
         onReact: @escaping (ChatMessage, String) -> Void
     ) {
         self.message = message
+        self.theme = theme
+        self.showSenderName = showSenderName
         self.onReply = onReply
         self.onReact = onReact
+    }
+
+    private var textColor: Color { message.isOutgoing ? theme.outgoingText : theme.incomingText }
+    private var metaColor: Color { message.isOutgoing ? theme.outgoingMeta : theme.incomingMeta }
+    /// Photo / file / voice with no caption: the time floats on the media instead of after text
+    private var isMediaOnly: Bool { message.text.isEmpty && (message.attachment != nil || message.voiceNote != nil) }
+
+    /// Invisible copy of the footer appended to the text, so the time/ticks overlay never covers words
+    /// and the bubble stays exactly as wide as the message (Telegram-style).
+    private var footerReservation: String {
+        "\u{2002}\u{2002}" + formattedTime(message.timestamp) + (message.isOutgoing ? "\u{2002}\u{2002}\u{2002}" : "")
     }
 
     public var body: some View {
@@ -27,28 +52,37 @@ public struct MessageBubbleView: View {
                 // Main Bubble
                 VStack(alignment: .leading, spacing: AppSpacing.xxs) {
                     // Sender Name (for incoming messages)
-                    if !message.isOutgoing && !message.senderName.isEmpty {
-                        Text(message.senderName)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(AppColors.accent)
+                    if showSenderName && !message.isOutgoing && !message.senderName.isEmpty {
+                        let isDev = message.senderRole == "owner" || message.senderUserId == "jame.kh" || message.senderName.lowercased().contains("jame")
+                        let isOwner = message.senderRole == "owner" || message.senderUserId == "jame.kh" || message.senderName.lowercased().contains("jame")
+                        AccountDisplayNameView(
+                            name: ContactNicknames.displayName(userId: message.senderUserId, fallback: message.senderName),
+                            isDeveloper: isDev,
+                            isOwner: isOwner,
+                            nameColorHex: message.senderNameColor,
+                            font: .system(size: 13, weight: .semibold),
+                            color: theme.accent,
+                            badgeSize: 13
+                        )
                     }
 
                     // Quoted Reply Preview
                     if let replyText = message.replyPreview {
                         HStack(spacing: AppSpacing.xs) {
                             Rectangle()
-                                .fill(message.isOutgoing ? Color.white.opacity(0.8) : AppColors.accent)
+                                .fill(message.isOutgoing ? theme.outgoingText.opacity(0.8) : theme.accent)
                                 .frame(width: 3)
 
                             Text(replyText)
                                 .font(AppTypography.caption)
                                 .lineLimit(2)
-                                .foregroundColor(message.isOutgoing ? Color.white.opacity(0.9) : AppColors.textSecondary)
+                                .foregroundColor(message.isOutgoing ? theme.outgoingText.opacity(0.9) : theme.incomingMeta)
                         }
                         .padding(.vertical, 4)
                         .padding(.horizontal, 6)
-                        .background(message.isOutgoing ? Color.white.opacity(0.15) : AppColors.background)
+                        .background(message.isOutgoing ? Color.white.opacity(0.15) : theme.accent.opacity(0.1))
                         .cornerRadius(AppCornerRadius.sm)
+                        .fixedSize(horizontal: false, vertical: true) // the quote bar must not stretch the bubble
                     }
 
                     // Voice Note View
@@ -66,51 +100,54 @@ public struct MessageBubbleView: View {
                         )
                     }
 
-                    // Message Text
+                    // Message text, with room reserved at the end for the time
                     if !message.text.isEmpty {
-                        Text(message.text)
+                        (Text(message.text).foregroundColor(textColor)
+                         + Text(footerReservation).font(.system(size: 11)).foregroundColor(.clear))
                             .font(AppTypography.body)
-                            .foregroundColor(message.isOutgoing ? Color.white : AppColors.textPrimary)
-                    }
-
-                    // Footer: Timestamp & Delivery Status
-                    HStack(spacing: 4) {
-                        Spacer(minLength: 16)
-
-                        Text(formattedTime(message.timestamp))
-                            .font(.system(size: 11))
-                            .foregroundColor(message.isOutgoing ? Color.white.opacity(0.7) : AppColors.textTertiary)
-
-                        if message.isOutgoing {
-                            statusIcon(message.status)
-                        }
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
+                .padding(.bottom, isMediaOnly && message.voiceNote != nil ? 14 : 0)
+                // Time + ticks in the bubble's corner (on a dark pill over photos)
+                .overlay(alignment: .bottomTrailing) {
+                    footer
+                        .padding(isMediaOnly && message.voiceNote == nil ? 6 : 0)
+                }
                 .padding(.horizontal, AppSpacing.sm)
-                .padding(.vertical, AppSpacing.xs)
+                .padding(.vertical, 7)
                 .background(bubbleBackground)
                 .clipShape(BubbleShape(isOutgoing: message.isOutgoing))
+                .shadow(color: Color.black.opacity(theme.isDark ? 0 : 0.06), radius: 1.5, y: 1)
 
                 // Reaction Ribbon
                 if !message.reactions.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(message.reactions) { reaction in
-                            HStack(spacing: 2) {
-                                Text(reaction.emoji)
-                                    .font(.system(size: 12))
+                            let matching = availableReactions.first { $0.id == reaction.emoji }
+                            HStack(spacing: 3) {
+                                if let icon = matching?.icon {
+                                    Image(systemName: icon)
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(matching?.color ?? theme.accent)
+                                } else {
+                                    Image(systemName: "heart.fill")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(theme.accent)
+                                }
                                 if reaction.count > 1 {
                                     Text("\(reaction.count)")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(AppColors.textPrimary)
+                                        .foregroundColor(theme.surfaceText)
                                 }
                             }
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(AppColors.surface)
+                            .background(theme.surface)
                             .cornerRadius(10)
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10)
-                                    .stroke(AppColors.border, lineWidth: 1)
+                                    .stroke(theme.border, lineWidth: 1)
                             )
                             .onTapGesture {
                                 onReact(message, reaction.emoji)
@@ -124,11 +161,11 @@ public struct MessageBubbleView: View {
             .contextMenu {
                 // Quick Reactions
                 Section {
-                    ForEach(availableEmojis, id: \.self) { emoji in
+                    ForEach(availableReactions, id: \.id) { r in
                         Button(action: {
-                            onReact(message, emoji)
+                            onReact(message, r.id)
                         }) {
-                            Label(emoji, systemImage: "face.smiling")
+                            Label(r.name, systemImage: r.icon)
                         }
                     }
                 }
@@ -155,16 +192,32 @@ public struct MessageBubbleView: View {
         .padding(.vertical, 2)
     }
 
+    private var footer: some View {
+        HStack(spacing: 3) {
+            Text(formattedTime(message.timestamp))
+                .font(.system(size: 11))
+                .monospacedDigit()
+            if message.isOutgoing {
+                statusIcon(message.status)
+            }
+        }
+        .foregroundColor(isMediaOnly && message.voiceNote == nil ? .white : metaColor)
+        .padding(.horizontal, isMediaOnly && message.voiceNote == nil ? 6 : 0)
+        .padding(.vertical, isMediaOnly && message.voiceNote == nil ? 2 : 0)
+        .background(isMediaOnly && message.voiceNote == nil ? Color.black.opacity(0.45) : .clear)
+        .clipShape(Capsule())
+    }
+
     @ViewBuilder
     private var bubbleBackground: some View {
         if message.isOutgoing {
             LinearGradient(
-                colors: [AppColors.accent, AppColors.accent.opacity(0.9)],
+                colors: theme.outgoing,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         } else {
-            AppColors.surface
+            theme.incoming
         }
     }
 
@@ -174,25 +227,22 @@ public struct MessageBubbleView: View {
         case .sending:
             Image(systemName: "clock")
                 .font(.system(size: 10))
-                .foregroundColor(Color.white.opacity(0.7))
         case .sent:
             Image(systemName: "checkmark")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(Color.white.opacity(0.8))
         case .delivered:
             HStack(spacing: -3) {
                 Image(systemName: "checkmark")
                 Image(systemName: "checkmark")
             }
             .font(.system(size: 9, weight: .semibold))
-            .foregroundColor(Color.white.opacity(0.8))
         case .read:
             HStack(spacing: -3) {
                 Image(systemName: "checkmark")
                 Image(systemName: "checkmark")
             }
             .font(.system(size: 9, weight: .bold))
-            .foregroundColor(AppColors.readReceipt)
+            .foregroundColor(theme.outgoingText)
         case .failed:
             Image(systemName: "exclamationmark.circle.fill")
                 .font(.system(size: 10))

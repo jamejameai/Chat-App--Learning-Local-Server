@@ -120,7 +120,7 @@ public struct CallsListView: View {
         NavigationStack {
             List(teamMembers) { member in
                 HStack(spacing: AppSpacing.sm) {
-                    AvatarView(name: member.title, size: 40)
+                    AvatarView(name: member.title, avatarUrl: member.avatarUrl, size: 40)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text(member.title)

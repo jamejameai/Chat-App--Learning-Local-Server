@@ -30,6 +30,7 @@ graph TD
         GroupModule["Group Management Module"]
         AttachmentModule["Attachment Auth Module"]
         CallModule["Call Signaling & Room Auth"]
+        LocationModule["Friend Live Location Module"]
         WSGateway["WebSocket Realtime Gateway"]
     end
 
@@ -61,6 +62,8 @@ graph TD
     Backend --> BlobStore
     Backend --> LiveKit
     Backend --> APNs
+    LocationModule --> Postgres
+    LocationModule --> WSGateway
 ```
 
 ---
@@ -96,6 +99,12 @@ All services conform to protocols and are registered in a central, thread-safe `
 - **Architecture**: Modular Monolith organized by domain bounds (`auth`, `users`, `devices`, `invitations`, `conversations`, `messages`, `groups`, `attachments`, `calls`, `realtime`, `notifications`, `admin`).
 - **API Style**: REST API versioned under `/api/v1` for mutations and bulk synchronization; authenticated WebSocket gateway for instant push notifications and signaling.
 - **Database**: PostgreSQL 16 with schema migrations via structured SQL/TypeORM/Prisma migrations.
+- **Friend live location**: the authenticated locations module retains only each sharing user's latest
+  coordinate and an explicit per-session audience snapshot. Reads and WebSocket updates require both
+  a selected viewer grant and a current mutual accepted friendship. Removing a friendship also
+  removes its grant. Stopping sharing removes the coordinate and audience; no route history is
+  collected. A separate stop-only capability supports revocation after the owner's login session
+  expires without exposing location reads.
 - **Relational Integrity**: Foreign keys with cascade constraints where safe; strict constraints on unique usernames, active device keys, and sequential message indices per conversation.
 
 ### 3.2 Authorization & Trust Boundary

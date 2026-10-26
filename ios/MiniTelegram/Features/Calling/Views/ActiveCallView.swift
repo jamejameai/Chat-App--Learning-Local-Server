@@ -1,312 +1,264 @@
 import SwiftUI
+import LiveKit
 
+/// Full-screen call: the other person's video (or their photo for voice calls), my camera preview,
+/// status / timer and the call controls.
 public struct ActiveCallView: View {
     @ObservedObject private var callManager = CallManager.shared
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var isShowingSecurityModal: Bool = false
 
     public init() {}
 
     public var body: some View {
         ZStack {
-            // Background: Dark gradient for video/call atmosphere
+            Color.black.ignoresSafeArea()
+
+            // Other person's video, full screen
+            if let remote = callManager.remoteVideoTrack {
+                SwiftUIVideoView(remote, layoutMode: .fill)
+                    .ignoresSafeArea()
+            }
+
+            VStack(spacing: 0) {
+                if callManager.remoteVideoTrack == nil {
+                    peerIdentity
+                        .padding(.top, 80)
+                } else {
+                    statusPill
+                        .padding(.top, AppSpacing.md)
+                }
+
+                Spacer()
+
+                if let error = callManager.errorMessage {
+                    Text(error)
+                        .font(AppTypography.footnote)
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, AppSpacing.lg)
+                        .padding(.vertical, AppSpacing.sm)
+                        .background(Color.black.opacity(0.55))
+                        .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+                        .padding(.bottom, AppSpacing.md)
+                }
+
+                controls
+                    .padding(.bottom, 40)
+            }
+            .padding(.horizontal, AppSpacing.lg)
+
+            // My camera preview, top-right
+            if callManager.isVideoEnabled, let local = callManager.localVideoTrack {
+                VStack {
+                    HStack {
+                        Spacer()
+                        SwiftUIVideoView(local, layoutMode: .fill, mirrorMode: callManager.isFrontCamera ? .mirror : .off)
+                            .frame(width: 110, height: 160)
+                            .clipShape(RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppCornerRadius.md, style: .continuous)
+                                    .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                            )
+                            .shadow(radius: 8)
+                    }
+                    Spacer()
+                }
+                .padding(.top, 60)
+                .padding(.trailing, AppSpacing.md)
+            }
+        }
+        .preferredColorScheme(.dark)
+        .statusBarHidden(callManager.remoteVideoTrack != nil)
+    }
+
+    private var title: String {
+        callManager.activeCall?.conversationTitle ?? "Call"
+    }
+
+    private var peerIdentity: some View {
+        VStack(spacing: AppSpacing.md) {
+            AvatarView(name: title, size: 110)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(isWaiting ? 0.35 : 0), lineWidth: 3)
+                        .scaleEffect(isWaiting ? 1.15 : 1)
+                        .animation(isWaiting ? .easeInOut(duration: 1.2).repeatForever(autoreverses: true) : .default, value: isWaiting)
+                )
+
+            Text(title)
+                .font(AppTypography.title)
+                .foregroundColor(.white)
+                .multilineTextAlignment(.center)
+
+            Text(statusText)
+                .font(AppTypography.subheadline)
+                .foregroundColor(.white.opacity(0.75))
+                .monospacedDigit()
+        }
+    }
+
+    private var statusPill: some View {
+        HStack(spacing: 6) {
+            Text(title)
+                .font(AppTypography.subheadline.weight(.semibold))
+            Text("·")
+            Text(statusText)
+                .monospacedDigit()
+        }
+        .font(AppTypography.footnote)
+        .foregroundColor(.white)
+        .padding(.horizontal, AppSpacing.md)
+        .padding(.vertical, 8)
+        .background(Color.black.opacity(0.45))
+        .clipShape(Capsule())
+    }
+
+    private var controls: some View {
+        HStack(spacing: AppSpacing.lg) {
+            CallControlButton(
+                icon: callManager.isMuted ? "mic.slash.fill" : "mic.fill",
+                isActive: callManager.isMuted
+            ) { callManager.toggleMute() }
+
+            CallControlButton(
+                icon: callManager.isVideoEnabled ? "video.fill" : "video.slash.fill",
+                isActive: !callManager.isVideoEnabled
+            ) { callManager.toggleVideo() }
+
+            if callManager.isVideoEnabled {
+                CallControlButton(icon: "arrow.triangle.2.circlepath.camera.fill", isActive: false) {
+                    callManager.flipCamera()
+                }
+            } else {
+                CallControlButton(
+                    icon: callManager.isSpeakerOn ? "speaker.wave.3.fill" : "speaker.fill",
+                    isActive: callManager.isSpeakerOn
+                ) { callManager.toggleSpeaker() }
+            }
+
+            Button {
+                Task { await callManager.endCurrentCall() }
+            } label: {
+                Image(systemName: "phone.down.fill")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 68, height: 68)
+                    .background(AppColors.statusError)
+                    .clipShape(Circle())
+            }
+        }
+    }
+
+    private var isWaiting: Bool {
+        [.dialing, .ringing, .connecting].contains(callManager.callState)
+    }
+
+    private var statusText: String {
+        switch callManager.callState {
+        case .idle, .dialing: return "Calling…"
+        case .ringing: return "Ringing…"
+        case .connecting: return "Connecting…"
+        case .reconnecting: return "Reconnecting…"
+        case .connected: return formatDuration(callManager.callDuration)
+        case .ended: return "Call ended"
+        }
+    }
+
+    private func formatDuration(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds)
+        return String(format: "%02d:%02d", total / 60, total % 60)
+    }
+}
+
+/// Round call-control button (white when active, translucent otherwise).
+struct CallControlButton: View {
+    let icon: String
+    let isActive: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 22, weight: .semibold))
+                .foregroundColor(isActive ? .black : .white)
+                .frame(width: 58, height: 58)
+                .background(isActive ? Color.white : Color.white.opacity(0.18))
+                .clipShape(Circle())
+        }
+    }
+}
+
+/// Full-screen incoming call with Decline / Accept.
+public struct IncomingCallView: View {
+    @ObservedObject private var callManager = CallManager.shared
+    let call: CallItem
+
+    public var body: some View {
+        ZStack {
             LinearGradient(
-                colors: [Color.black, Color(white: 0.12)],
+                colors: [AppColors.accent.opacity(0.9), Color.black],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                // Top Bar: Back / Minimize button and E2EE Fingerprint
-                HStack {
-                    Button(action: { dismiss() }) {
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(12)
-                            .background(Color.white.opacity(0.15))
-                            .clipShape(Circle())
-                    }
-
-                    Spacer()
-
-                    // E2EE Security Shield & Emojis
-                    if !callManager.verificationFingerprint.isEmpty {
-                        Button(action: { isShowingSecurityModal = true }) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "lock.shield.fill")
-                                    .foregroundColor(AppColors.statusOnline)
-                                    .font(.system(size: 13))
-
-                                Text(callManager.verificationFingerprint)
-                                    .font(.system(size: 15))
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.white.opacity(0.15))
-                            .cornerRadius(AppCornerRadius.full)
-                        }
-                    }
-
-                    Spacer()
-
-                    // Balance spacer
-                    Color.clear
-                        .frame(width: 42, height: 42)
-                }
-                .padding(.horizontal, AppSpacing.md)
-                .padding(.top, AppSpacing.sm)
-
-                Spacer()
-
-                // Center Stage: Avatar or Video Feed
-                if callManager.isVideoEnabled {
-                    videoStageView
-                } else {
-                    audioStageView
-                }
-
-                Spacer()
-
-                // Bottom Call Controls Bar
-                callControlsBar
-                    .padding(.bottom, AppSpacing.xl)
-            }
-        }
-        .sheet(isPresented: $isShowingSecurityModal) {
-            e2eeExplanationModal
-        }
-    }
-
-    // MARK: - Audio Stage View
-    private var audioStageView: some View {
-        VStack(spacing: AppSpacing.md) {
-            ZStack {
-                // Pulsating aura when ringing or connecting
-                if callManager.callState == .dialing || callManager.callState == .connecting {
-                    Circle()
-                        .fill(AppColors.accent.opacity(0.2))
-                        .frame(width: 150, height: 150)
-                        .scaleEffect(1.2)
-                        .animation(Animation.easeInOut(duration: 1.2).repeatForever(autoreverses: true), value: callManager.callState)
-                }
-
-                AvatarView(name: callManager.activeCall?.conversationTitle ?? "Contact", size: 100)
-            }
-
-            VStack(spacing: 6) {
-                Text(callManager.activeCall?.conversationTitle ?? "Calling...")
+            VStack(spacing: AppSpacing.md) {
+                Spacer().frame(height: 80)
+                AvatarView(name: call.callerName, size: 120)
+                Text(call.callerName)
                     .font(AppTypography.title)
                     .foregroundColor(.white)
-
-                Text(statusText())
-                    .font(AppTypography.body)
-                    .foregroundColor(.white.opacity(0.7))
-            }
-        }
-    }
-
-    // MARK: - Video Stage View
-    private var videoStageView: some View {
-        ZStack(alignment: .topTrailing) {
-            // Simulated Remote Video Feed
-            Rectangle()
-                .fill(Color(white: 0.18))
-                .cornerRadius(AppCornerRadius.lg)
-                .overlay(
-                    VStack(spacing: 8) {
-                        Image(systemName: "person.fill")
-                            .font(.system(size: 56))
-                            .foregroundColor(.white.opacity(0.4))
-                        Text(callManager.activeCall?.conversationTitle ?? "Remote Participant")
-                            .font(AppTypography.caption)
-                            .foregroundColor(.white.opacity(0.6))
-                    }
-                )
-
-            // Local Camera Preview Thumbnail (Picture-in-Picture)
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(white: 0.28))
-                .frame(width: 100, height: 140)
-                .overlay(
-                    VStack(spacing: 4) {
-                        Image(systemName: callManager.isFrontCamera ? "camera.fill" : "camera.metering.matrix")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white)
-                        Text("You")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white)
-                    }
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.4), lineWidth: 1.5)
-                )
-                .padding(12)
-        }
-        .frame(maxHeight: 400)
-        .padding(.horizontal, AppSpacing.md)
-    }
-
-    // MARK: - Controls Bar
-    private var callControlsBar: some View {
-        HStack(spacing: 24) {
-            // Mute Button
-            Button(action: { callManager.toggleMute() }) {
-                controlCircle(
-                    icon: callManager.isMuted ? "mic.slash.fill" : "mic.fill",
-                    label: "Mute",
-                    isActive: callManager.isMuted
-                )
-            }
-
-            // Video Button
-            Button(action: { callManager.toggleVideo() }) {
-                controlCircle(
-                    icon: callManager.isVideoEnabled ? "video.fill" : "video.slash.fill",
-                    label: "Video",
-                    isActive: callManager.isVideoEnabled
-                )
-            }
-
-            // Flip Camera Button (if video enabled)
-            if callManager.isVideoEnabled {
-                Button(action: { callManager.flipCamera() }) {
-                    controlCircle(
-                        icon: "camera.rotate.fill",
-                        label: "Flip",
-                        isActive: false
-                    )
-                }
-            } else {
-                // Speaker Button
-                Button(action: { callManager.toggleSpeaker() }) {
-                    controlCircle(
-                        icon: callManager.isSpeakerOn ? "speaker.wave.3.fill" : "speaker.fill",
-                        label: "Speaker",
-                        isActive: callManager.isSpeakerOn
-                    )
-                }
-            }
-
-            // End Call Button
-            Button(action: {
-                Task {
-                    await callManager.endCurrentCall()
-                    dismiss()
-                }
-            }) {
-                ZStack {
-                    Circle()
-                        .fill(AppColors.statusError)
-                        .frame(width: 60, height: 60)
-
-                    Image(systemName: "phone.down.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(.white)
-                }
-            }
-        }
-    }
-
-    private func controlCircle(icon: String, label: String, isActive: Bool) -> some View {
-        VStack(spacing: 6) {
-            ZStack {
-                Circle()
-                    .fill(isActive ? Color.white : Color.white.opacity(0.2))
-                    .frame(width: 56, height: 56)
-
-                Image(systemName: icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(isActive ? .black : .white)
-            }
-
-            Text(label)
-                .font(.system(size: 11, weight: .medium))
-                .foregroundColor(.white.opacity(0.8))
-        }
-    }
-
-    private func statusText() -> String {
-        switch callManager.callState {
-        case .dialing:
-            return "Dialing..."
-        case .ringing:
-            return "Ringing..."
-        case .connecting:
-            return "Connecting WebRTC SFU..."
-        case .connected:
-            return formatDuration(callManager.callDuration)
-        case .reconnecting:
-            return "Reconnecting..."
-        case .ended:
-            return "Call Ended"
-        case .idle:
-            return ""
-        }
-    }
-
-    private func formatDuration(_ duration: TimeInterval) -> String {
-        let mins = Int(duration) / 60
-        let secs = Int(duration) % 60
-        return String(format: "%02d:%02d", mins, secs)
-    }
-
-    // MARK: - E2EE Security Modal
-    private var e2eeExplanationModal: some View {
-        NavigationStack {
-            VStack(spacing: AppSpacing.lg) {
-                Image(systemName: "shield.checkered")
-                    .font(.system(size: 64))
-                    .foregroundColor(AppColors.statusOnline)
-                    .padding(.top, AppSpacing.lg)
-
-                Text("End-to-End Encrypted")
-                    .font(AppTypography.title)
-                    .foregroundColor(AppColors.textPrimary)
-
-                Text("This call is secured with WebRTC FrameCryptor (SFrame). No intermediary, not even the LiveKit SFU server, has access to the audio or video frames.")
-                    .font(AppTypography.body)
-                    .foregroundColor(AppColors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, AppSpacing.lg)
-
-                VStack(spacing: 8) {
-                    Text("Verification Fingerprint:")
-                        .font(AppTypography.caption.weight(.semibold))
-                        .foregroundColor(AppColors.textTertiary)
-
-                    Text(callManager.verificationFingerprint)
-                        .font(.system(size: 32))
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(AppColors.surface)
-                        .cornerRadius(AppCornerRadius.md)
-
-                    Text("Compare these 4 emojis with your peer. If they match, your connection is guaranteed cryptographically authentic.")
-                        .font(AppTypography.caption)
-                        .foregroundColor(AppColors.textTertiary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, AppSpacing.xl)
-                }
-
+                Text(call.callType == .video ? "Incoming video call…" : "Incoming voice call…")
+                    .font(AppTypography.subheadline)
+                    .foregroundColor(.white.opacity(0.8))
                 Spacer()
 
-                Button(L("action_close", "Close")) {
-                    isShowingSecurityModal = false
+                HStack(spacing: 80) {
+                    VStack(spacing: 8) {
+                        Button {
+                            Task { await callManager.declineIncomingCall(callId: call.id) }
+                        } label: {
+                            Image(systemName: "phone.down.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 72, height: 72)
+                                .background(AppColors.statusError)
+                                .clipShape(Circle())
+                        }
+                        Text("Decline").font(AppTypography.footnote).foregroundColor(.white)
+                    }
+
+                    VStack(spacing: 8) {
+                        Button {
+                            Task { await callManager.answerCall(callItem: call) }
+                        } label: {
+                            Image(systemName: call.callType == .video ? "video.fill" : "phone.fill")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 72, height: 72)
+                                .background(AppColors.statusOnline)
+                                .clipShape(Circle())
+                        }
+                        Text("Accept").font(AppTypography.footnote).foregroundColor(.white)
+                    }
                 }
-                .font(AppTypography.headline)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppSpacing.sm)
-                .background(AppColors.accent)
-                .cornerRadius(AppCornerRadius.md)
-                .padding(.horizontal, AppSpacing.lg)
-                .padding(.bottom, AppSpacing.md)
+                .padding(.bottom, 60)
             }
-            .navigationBarTitleDisplayMode(.inline)
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+/// What MainTabView shows full screen while a call is ringing or in progress.
+public struct CallScreen: View {
+    @ObservedObject private var callManager = CallManager.shared
+
+    public init() {}
+
+    public var body: some View {
+        if callManager.activeCall == nil, let incoming = callManager.incomingCallItem {
+            IncomingCallView(call: incoming)
+        } else {
+            ActiveCallView()
         }
     }
 }

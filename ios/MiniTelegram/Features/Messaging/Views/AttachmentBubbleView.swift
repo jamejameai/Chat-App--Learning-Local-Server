@@ -6,6 +6,7 @@ public struct AttachmentBubbleView: View {
     public let isOutgoing: Bool
 
     @State private var localURL: URL? = nil
+    @Environment(\.chatTheme) private var theme
     @State private var isLoading: Bool = false
     @State private var previewItem: PreviewItem? = nil
 
@@ -51,22 +52,22 @@ public struct AttachmentBubbleView: View {
                         }
                 } else {
                     Rectangle()
-                        .fill(isOutgoing ? Color.white.opacity(0.15) : AppColors.background)
+                        .fill(isOutgoing ? Color.white.opacity(0.15) : theme.incomingText.opacity(0.06))
                         .frame(width: 200, height: 150)
                         .cornerRadius(AppCornerRadius.md)
                         .overlay(
                             VStack(spacing: 8) {
                                 if isLoading {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: isOutgoing ? Color.white : AppColors.accent))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: isOutgoing ? theme.outgoingText : theme.accent))
                                 } else {
                                     Image(systemName: "arrow.down.circle.fill")
                                         .font(.system(size: 32))
-                                        .foregroundColor(isOutgoing ? Color.white : AppColors.accent)
+                                        .foregroundColor(isOutgoing ? theme.outgoingText : theme.accent)
 
                                     Text(formattedByteSize(attachment.byteSize))
                                         .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(isOutgoing ? Color.white.opacity(0.8) : AppColors.textSecondary)
+                                        .foregroundColor(isOutgoing ? theme.outgoingMeta : theme.incomingMeta)
                                 }
                             }
                         )
@@ -85,21 +86,21 @@ public struct AttachmentBubbleView: View {
         HStack(spacing: AppSpacing.xs) {
             ZStack {
                 Circle()
-                    .fill(isOutgoing ? Color.white.opacity(0.2) : AppColors.accent.opacity(0.15))
+                    .fill(isOutgoing ? Color.white.opacity(0.2) : theme.accent.opacity(0.15))
                     .frame(width: 42, height: 42)
 
                 if isLoading {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: isOutgoing ? Color.white : AppColors.accent))
+                        .progressViewStyle(CircularProgressViewStyle(tint: isOutgoing ? theme.outgoingText : theme.accent))
                         .scaleEffect(0.8)
                 } else if localURL != nil {
                     Image(systemName: documentIcon(for: attachment.fileName))
                         .font(.system(size: 18))
-                        .foregroundColor(isOutgoing ? Color.white : AppColors.accent)
+                        .foregroundColor(isOutgoing ? theme.outgoingText : theme.accent)
                 } else {
                     Image(systemName: "arrow.down")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(isOutgoing ? Color.white : AppColors.accent)
+                        .foregroundColor(isOutgoing ? theme.outgoingText : theme.accent)
                 }
             }
 
@@ -107,13 +108,13 @@ public struct AttachmentBubbleView: View {
                 Text(attachment.fileName)
                     .font(AppTypography.caption)
                     .fontWeight(.medium)
-                    .foregroundColor(isOutgoing ? Color.white : AppColors.textPrimary)
+                    .foregroundColor(isOutgoing ? theme.outgoingText : theme.incomingText)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Text(formattedByteSize(attachment.byteSize))
                     .font(.system(size: 10))
-                    .foregroundColor(isOutgoing ? Color.white.opacity(0.7) : AppColors.textSecondary)
+                    .foregroundColor(isOutgoing ? theme.outgoingMeta : theme.incomingMeta)
             }
             .frame(maxWidth: 160, alignment: .leading)
         }

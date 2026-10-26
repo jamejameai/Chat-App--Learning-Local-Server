@@ -183,9 +183,38 @@ docker compose -f infrastructure/docker-compose.prod.yml ps
    xcodebuild test \
      -project ios/MiniTelegram.xcodeproj \
      -scheme MiniTelegram \
-     -destination 'platform=iOS Simulator,name=iPhone 18 Pro' \
-     CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+     -destination 'platform=iOS Simulator,name=iPhone 18 Pro'
    ```
+   Do not disable code signing: the project signs ad-hoc ("Sign to Run Locally"), and the
+   Simulator rejects Keychain access from unsigned apps with `errSecMissingEntitlement` (-34018).
+
+---
+
+## 🌍 Home Server & Internet Access
+
+The backend runs in Docker on the home Ubuntu server (default `jj_home_lap@100.78.0.52`, its Tailscale address — reachable from any network once the phone/Mac run Tailscale on the same tailnet).
+
+```bash
+bash scripts/deploy-lan.sh                 # sync code, build, migrate, health-check
+bash scripts/deploy-lan.sh --import-local  # same, plus copy the local Docker DB's data (first time only)
+./run.sh                                   # check the server, build + launch the app in the Simulator
+```
+
+Requires SSH key login (`ssh-add --apple-use-keychain ~/.ssh/id_ed25519` if the key has a passphrase).
+Secrets are generated on the server in `~/our-chat/infrastructure/.env` and never committed.
+
+**Working from anywhere.** A Cloudflare *quick tunnel* container (`minitelegram-tunnel`) gives the API an
+HTTPS address on the internet, with no router changes. The app tries the home address first (fast) and
+falls back to the internet address, which it learns from `GET /api/v1/network/config` whenever it connects.
+
+- A quick tunnel gets a **new random address every time it restarts** (server reboot, `docker restart`).
+  Phones that were away from home at that moment can't find the new address until they connect on the
+  home Wi-Fi once, or you type it in under Server settings. This prints the current one:
+  `ssh jj_home_lap@100.78.0.52 "curl -s localhost:3001/api/v1/network/config"`
+- For a permanent address, use a named Cloudflare Tunnel with your own domain instead.
+- Chat, login, profile and file sending work over the tunnel. Voice/video calls (LiveKit/Coturn use UDP
+  ports) work on the home network only.
+- `register`, `login` and invite endpoints are rate-limited to 10 requests/minute per client address.
 
 ---
 

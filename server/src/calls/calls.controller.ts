@@ -5,11 +5,12 @@ import {
   Body,
   Param,
   UseGuards,
-  Request,
+  ParseUUIDPipe,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
 import { CallsService } from './calls.service';
 import { IsUUID, IsIn, IsNotEmpty } from 'class-validator';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 class InitiateCallDto {
   @IsUUID()
@@ -21,32 +22,40 @@ class InitiateCallDto {
   call_type: 'audio' | 'video';
 }
 
+// The login token gives { userId, deviceId } (see JwtStrategy); there is no `user.id`.
 @Controller('calls')
-@UseGuards(AuthGuard('jwt'))
+@UseGuards(JwtAuthGuard)
 export class CallsController {
   constructor(private readonly callsService: CallsService) {}
 
   @Post('initiate')
-  async initiateCall(@Request() req: any, @Body() dto: InitiateCallDto) {
-    return await this.callsService.initiateCall(
-      dto.conversation_id,
-      req.user.id,
-      dto.call_type,
-    );
+  async initiateCall(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('deviceId') deviceId: string,
+    @Body() dto: InitiateCallDto,
+  ) {
+    return await this.callsService.initiateCall(dto.conversation_id, userId, deviceId, dto.call_type);
   }
 
   @Post(':id/join')
-  async joinCall(@Request() req: any, @Param('id') id: string) {
-    return await this.callsService.joinCall(id, req.user.id);
+  async joinCall(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('deviceId') deviceId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return await this.callsService.joinCall(id, userId, deviceId);
   }
 
   @Post(':id/end')
-  async endCall(@Request() req: any, @Param('id') id: string) {
-    return await this.callsService.endCall(id, req.user.id);
+  async endCall(
+    @CurrentUser('userId') userId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return await this.callsService.endCall(id, userId);
   }
 
   @Get('history')
-  async getCallHistory(@Request() req: any) {
-    return await this.callsService.getCallHistory(req.user.id);
+  async getCallHistory(@CurrentUser('userId') userId: string) {
+    return await this.callsService.getCallHistory(userId);
   }
 }

@@ -3,16 +3,20 @@ import SwiftUI
 public struct NewConversationSheet: View {
     @ObservedObject public var viewModel: ConversationsViewModel
     @Binding public var selectedConversation: ConversationItem?
+    /// Shows a "New Group" row at the top when set
+    public var onNewGroup: (() -> Void)?
     @Environment(\.dismiss) private var dismiss
 
     @State private var filterQuery: String = ""
 
     public init(
         viewModel: ConversationsViewModel,
-        selectedConversation: Binding<ConversationItem?>
+        selectedConversation: Binding<ConversationItem?>,
+        onNewGroup: (() -> Void)? = nil
     ) {
         self.viewModel = viewModel
         self._selectedConversation = selectedConversation
+        self.onNewGroup = onNewGroup
     }
 
     private var filteredMembers: [TeamMember] {
@@ -43,11 +47,35 @@ public struct NewConversationSheet: View {
                 .padding(.horizontal, AppSpacing.md)
                 .padding(.vertical, AppSpacing.xs)
 
+                if let onNewGroup, filterQuery.isEmpty {
+                    Button(action: onNewGroup) {
+                        HStack(spacing: AppSpacing.sm) {
+                            Image(systemName: "person.3.fill")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 44, height: 44)
+                                .background(Circle().fill(AppColors.accent))
+                            Text("New Group")
+                                .font(AppTypography.headline)
+                                .foregroundColor(AppColors.accent)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(AppColors.textTertiary)
+                        }
+                        .padding(.horizontal, AppSpacing.md)
+                        .padding(.vertical, AppSpacing.xs)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    Divider().padding(.leading, 72)
+                }
+
                 if filteredMembers.isEmpty {
                     EmptyStateView(
                         icon: "person.crop.circle.badge.questionmark",
-                        title: "No Team Members",
-                        description: "No team members matched your search."
+                        title: "No People Found",
+                        description: "Nobody matched your search."
                     )
                 } else {
                     List(filteredMembers) { member in
@@ -63,7 +91,7 @@ public struct NewConversationSheet: View {
                             }
                         }) {
                             HStack(spacing: AppSpacing.sm) {
-                                AvatarView(name: member.title, size: 44)
+                                AvatarView(name: member.title, avatarUrl: member.avatarUrl, size: 44)
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(member.title)

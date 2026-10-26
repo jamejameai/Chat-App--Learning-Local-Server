@@ -8,6 +8,7 @@ public struct GroupInfoView: View {
     @State private var isShowingAddMember: Bool = false
     @State private var isShowingLeaveAlert: Bool = false
     @State private var selectedMemberToManage: GroupMember? = nil
+    @State private var profileMember: GroupMember? = nil
 
     public init(conversation: ConversationItem) {
         _viewModel = StateObject(wrappedValue: GroupInfoViewModel(conversation: conversation))
@@ -94,6 +95,9 @@ public struct GroupInfoView: View {
         }
         .navigationTitle("Group Info")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $profileMember) { member in
+            FriendProfileView(userId: member.id, name: member.title, avatarUrl: member.avatarUrl)
+        }
         .sheet(isPresented: $isShowingAddMember) {
             AddGroupMemberSheet(groupInfoViewModel: viewModel)
         }
@@ -117,13 +121,19 @@ public struct GroupInfoView: View {
         let isCurrentUser = member.id == appState.currentUser?.id
 
         HStack(spacing: AppSpacing.sm) {
-            AvatarView(name: member.title, size: 40)
+            AvatarView(name: member.title, avatarUrl: member.avatarUrl, size: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(member.title)
-                        .font(AppTypography.body)
-                        .foregroundColor(AppColors.textPrimary)
+                    AccountDisplayNameView(
+                        name: member.title,
+                        isDeveloper: member.role == "owner" || member.username.lowercased() == "jame.kh",
+                        isOwner: member.role == "owner" || member.username.lowercased() == "jame.kh",
+                        nameColorHex: (member.role == "owner" || member.username.lowercased() == "jame.kh") ? NameColorTheme.imperialRed.hex : nil,
+                        font: AppTypography.body,
+                        color: AppColors.textPrimary,
+                        badgeSize: 13
+                    )
 
                     if isCurrentUser {
                         Text("(You)")
@@ -176,6 +186,13 @@ public struct GroupInfoView: View {
             }
         }
         .padding(.vertical, 2)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // Tap a member to see their profile (the ⋯ menu still works on its own)
+            if !isCurrentUser {
+                profileMember = member
+            }
+        }
     }
 
     @ViewBuilder

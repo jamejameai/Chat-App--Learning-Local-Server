@@ -7,6 +7,7 @@ public struct VoiceMessageBubbleView: View {
     public let attachment: MessageAttachment?
 
     @StateObject private var player = AudioPlayerManager.shared
+    @Environment(\.chatTheme) private var theme
     @State private var isLoadingAudio: Bool = false
     @State private var localAudioUrl: URL? = nil
 
@@ -39,17 +40,17 @@ public struct VoiceMessageBubbleView: View {
             Button(action: handlePlayTap) {
                 ZStack {
                     Circle()
-                        .fill(isOutgoing ? Color.white : AppColors.accent)
+                        .fill(isOutgoing ? theme.outgoingText : theme.accent)
                         .frame(width: 38, height: 38)
 
                     if isLoadingAudio {
                         ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: isOutgoing ? AppColors.accent : Color.white))
+                            .progressViewStyle(CircularProgressViewStyle(tint: isOutgoing ? (theme.outgoing.first ?? theme.accent) : Color.white))
                             .scaleEffect(0.8)
                     } else {
                         Image(systemName: isCurrentlyPlaying ? "pause.fill" : "play.fill")
                             .font(.system(size: 16))
-                            .foregroundColor(isOutgoing ? AppColors.accent : Color.white)
+                            .foregroundColor(isOutgoing ? (theme.outgoing.first ?? theme.accent) : Color.white)
                             .offset(x: isCurrentlyPlaying ? 0 : 1)
                     }
                 }
@@ -96,7 +97,7 @@ public struct VoiceMessageBubbleView: View {
                 // Duration Label
                 Text(formatDuration())
                     .font(.system(size: 11, weight: .medium, design: .monospaced))
-                    .foregroundColor(isOutgoing ? Color.white.opacity(0.8) : AppColors.textSecondary)
+                    .foregroundColor(isOutgoing ? theme.outgoingMeta : theme.incomingMeta)
             }
         }
         .frame(minWidth: 180, maxWidth: 220)
@@ -110,7 +111,7 @@ public struct VoiceMessageBubbleView: View {
         if isOutgoing {
             return isPlayed ? Color.white : Color.white.opacity(0.4)
         } else {
-            return isPlayed ? AppColors.accent : AppColors.accent.opacity(0.3)
+            return isPlayed ? theme.accent : theme.accent.opacity(0.3)
         }
     }
 

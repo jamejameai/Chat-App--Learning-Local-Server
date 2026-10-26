@@ -1,7 +1,8 @@
-/* Khmer (ភាសាខ្មែរ) Localization for Mini Telegram */
+/* Khmer (ភាសាខ្មែរ) Localization for Our Chat */
 
 /* Navigation & Tabs */
 "tab_chats" = "ការសន្ទនា";
+"tab_profile" = "គណនី និងមិត្តភក្តិ";
 "tab_calls" = "ការហៅ";
 "tab_community" = "ក្រុម";
 "tab_settings" = "ការកំណត់";
@@ -21,8 +22,8 @@
 "action_share" = "ចែករំលែក";
 
 /* Onboarding & Authentication */
-"auth_welcome_title" = "Mini Telegram";
-"auth_welcome_subtitle" = "ប្រព័ន្ធទំនាក់ទំនងក្រុមផ្ទាល់ខ្លួន សុវត្ថិភាពកម្រិតខ្ពស់ E2EE";
+"auth_welcome_title" = "Our Chat";
+"auth_welcome_subtitle" = "ប្រព័ន្ធទំនាក់ទំនងផ្ទាល់ខ្លួន ការហៅទូរស័ព្ទ និងភ្ជាប់ទំនាក់ទំនងមិត្តភក្តិ";
 "auth_enter_invite_code" = "បញ្ចូលលេខកូដអញ្ជើញ";
 "auth_invite_code_placeholder" = "ឧ. invite_...";
 "auth_verify_invite_button" = "ផ្ទៀងផ្ទាត់ការអញ្ជើញ";
@@ -135,3 +136,36 @@
 "error_invalid_credentials" = "ឈ្មោះអ្នកប្រើប្រាស់ ឬពាក្យសម្ងាត់មិនត្រឹមត្រូវ";
 "error_session_expired" = "វគ្គរបស់អ្នកបានផុតកំណត់។ សូមចូលគណនីម្តងទៀត។";
 "error_crypto_failure" = "ប្រតិបត្តិការកូដនីយកម្មបានបរាជ័យ";
+
+/* Notifications when the app is closed (Bark relay) */
+"bark_settings_row" = "ការជូនដំណឹង";
+"bark_title" = "ការជូនដំណឹង";
+"bark_permission_header" = "ការជូនដំណឹងរបស់ Our Chat";
+"bark_permission_off" = "ការជូនដំណឹងសម្រាប់ Our Chat ត្រូវបានបិទ ដូច្នេះសារថ្មីមិនអាចជូនដំណឹងអ្នកបានទេ។";
+"bark_permission_allow" = "អនុញ្ញាតការជូនដំណឹង";
+"bark_permission_open_settings" = "បើកនៅក្នុង Settings";
+"bark_closed_header" = "ពេល Our Chat ត្រូវបានបិទ";
+"bark_explain" = "ពេលអ្នកអូសបិទ Our Chat ទូរស័ព្ទ iPhone បញ្ឈប់វាទាំងស្រុង ដូច្នេះវាមិនអាចជូនដំណឹងអ្នកដោយខ្លួនឯងបានទេ។ កម្មវិធី Bark ឥតគិតថ្លៃអាចធ្វើបាន៖ ម៉ាស៊ីនមេ Our Chat ផ្ញើការជូនដំណឹងទៅ Bark ជាមួយសំឡេង ទោះបី Our Chat ត្រូវបានបិទក៏ដោយ។ ចុចលើការជូនដំណឹងដើម្បីបើកការសន្ទនា។";
+"bark_step_get" = "1. ទាញយក Bark (ឥតគិតថ្លៃ)";
+"bark_step_copy" = "2. បើក Bark ហើយចុច Allow សម្រាប់ការជូនដំណឹងរបស់វា។ បន្ទាប់មកចម្លងអាសយដ្ឋានដែលវាបង្ហាញ (ចាប់ផ្តើមដោយ https://api.day.app/)។";
+"bark_step_paste" = "3. បិទភ្ជាប់អាសយដ្ឋាននៅទីនេះ ហើយចុច ភ្ជាប់៖";
+"bark_key_placeholder" = "https://api.day.app/…";
+"bark_connect" = "ភ្ជាប់";
+"bark_reconnect" = "ភ្ជាប់ម្តងទៀត";
+"bark_enabled" = "ជូនដំណឹងតាមរយៈ Bark";
+"bark_message_sound" = "សំឡេងសារ";
+"bark_call_sound" = "សំឡេងការហៅ";
+"bark_sound_ping" = "ping (Our Chat)";
+"bark_send_test" = "ផ្ញើការជូនដំណឹងសាកល្បង";
+"bark_disconnect" = "ផ្តាច់ Bark";
+"bark_privacy" = "ការជូនដំណឹងប្រាប់តែអ្នកណាជាអ្នកសរសេរ មិនប្រាប់ខ្លឹមសារទេ៖ សាររបស់អ្នកនៅតែត្រូវបានអ៊ិនគ្រីបពីចុងម្ខាងទៅចុងម្ខាង។";
+"bark_ping_header" = "សំឡេង Our Chat នៅក្នុង Bark";
+"bark_ping_steps" = "ដើម្បីឮសំឡេង ping របស់ Our Chat៖ រក្សាទុកសំឡេងទៅ Files ខាងក្រោម បន្ទាប់មកនៅក្នុង Bark បើកការកំណត់សំឡេង ផ្ទុកឡើង ping.caf ហើយជ្រើសរើស \"ping (Our Chat)\" ខាងលើ។";
+"bark_ping_save" = "រក្សាទុកសំឡេង ping";
+"bark_not_now" = "មិនមែនឥឡូវ";
+"bark_done" = "រួចរាល់";
+"bark_error_empty_key" = "សូមបិទភ្ជាប់អាសយដ្ឋានពីកម្មវិធី Bark ជាមុនសិន។";
+"bark_error_key_rejected" = "Bark លែងទទួលយកអាសយដ្ឋាននេះហើយ (វាត្រូវបានកំណត់ឡើងវិញ ឬ Bark ត្រូវបានលុប)។ សូមចម្លងអាសយដ្ឋានពី Bark ម្តងទៀត ហើយភ្ជាប់។";
+"bark_error_unreachable" = "មិនអាចទាក់ទង Bark បានកាលពីលើកមុន។ សូមពិនិត្យការតភ្ជាប់អ៊ីនធឺណិតរបស់ម៉ាស៊ីនមេ។";
+"bark_notice_connected" = "បានភ្ជាប់។ ការជូនដំណឹងសាកល្បងកំពុងផ្ញើទៅ Bark។";
+"bark_notice_test_sent" = "បានផ្ញើការជូនដំណឹងសាកល្បង។ វានឹងមកដល់ក្នុងរយៈពេលពីរបីវិនាទី។";

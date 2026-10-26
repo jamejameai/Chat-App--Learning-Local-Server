@@ -33,7 +33,16 @@ public final class LocalDatabaseManager: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
 
-        for item in items {
+        for var item in items {
+            // A list refresh must not wipe what this phone already knows (preview, photo)
+            if let existing = conversations[item.id] {
+                if item.lastMessageText == nil { item.lastMessageText = existing.lastMessageText }
+                if item.lastMessageTimestamp == nil { item.lastMessageTimestamp = existing.lastMessageTimestamp }
+                if item.avatarUrl == nil { item.avatarUrl = existing.avatarUrl }
+                if item.recipientRole == nil { item.recipientRole = existing.recipientRole }
+                if item.recipientBorderTemplate == nil { item.recipientBorderTemplate = existing.recipientBorderTemplate }
+                if item.recipientNameColor == nil { item.recipientNameColor = existing.recipientNameColor }
+            }
             conversations[item.id] = item
         }
         persistConversations()
@@ -68,10 +77,18 @@ public final class LocalDatabaseManager: @unchecked Sendable {
         var list = messagesByConversation[message.conversationId] ?? []
 
         // Idempotency: if message with this id exists, update it
+        let isNewMessage: Bool
         if let idx = list.firstIndex(where: { $0.id == message.id }) {
-            list[idx] = message
+            // Delivery progress only moves forward: a later sync must not turn "seen" back into "sent"
+            var merged = message
+            if Self.statusRank(list[idx].status) > Self.statusRank(message.status) {
+                merged.status = list[idx].status
+            }
+            list[idx] = merged
+            isNewMessage = false
         } else {
             list.append(message)
+            isNewMessage = true
         }
 
         // Sort by sequenceId, then timestamp
@@ -86,20 +103,16 @@ public final class LocalDatabaseManager: @unchecked Sendable {
 
         // Update conversation summary
         if var conv = conversations[message.conversationId] {
-            if !message.text.isEmpty {
-                conv.lastMessageText = message.text
-            } else if let vn = message.voiceNote {
-                conv.lastMessageText = "🎤 Voice message (\(Int(vn.durationSeconds))s)"
-            } else if let att = message.attachment {
-                conv.lastMessageText = "📎 \(att.fileName)"
-            } else {
-                conv.lastMessageText = "Message"
+            // Only the newest message becomes the preview (older ones arrive during sync)
+            if conv.lastMessageTimestamp.map({ message.timestamp >= $0 }) ?? true {
+                conv.lastMessageText = MessagePreview.text(for: message)
+                conv.lastMessageTimestamp = message.timestamp
             }
-            conv.lastMessageTimestamp = message.timestamp
             if message.sequenceId > conv.lastSequenceId {
                 conv.lastSequenceId = message.sequenceId
             }
-            if !message.isOutgoing && message.status != .read {
+            // Count each incoming message once, even if it is saved again (live + sync)
+            if isNewMessage && !message.isOutgoing && message.status != .read {
                 conv.unreadCount += 1
             }
             conversations[message.conversationId] = conv
@@ -147,6 +160,55 @@ public final class LocalDatabaseManager: @unchecked Sendable {
         list[idx].status = status
         messagesByConversation[conversationId] = list
         persistMessages(conversationId: conversationId)
+    }
+
+    private static func statusRank(_ status: MessageDeliveryStatus) -> Int {
+        switch status {
+        case .failed: return 0
+        case .sending: return 1
+        case .sent: return 2
+        case .delivered: return 3
+        case .read: return 4
+        }
+    }
+
+    /// Marks my messages up to `upToSequence` as seen (from a read receipt or sync). Returns true if anything changed.
+    @discardableResult
+    public func markOutgoingRead(conversationId: String, upToSequence: Int64) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        guard upToSequence > 0, var list = messagesByConversation[conversationId] else { return false }
+        var changed = false
+        for i in list.indices
+        where list[i].isOutgoing
+            && list[i].sequenceId > 0
+            && list[i].sequenceId <= upToSequence
+            && list[i].status != .read
+            && list[i].status != .failed {
+            list[i].status = .read
+            changed = true
+        }
+        if changed {
+            messagesByConversation[conversationId] = list
+            persistMessages(conversationId: conversationId)
+        }
+        return changed
+    }
+
+    public func hasMessage(id: String, conversationId: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+
+        return messagesByConversation[conversationId]?.contains { $0.id == id } ?? false
+    }
+
+    /// Unread messages across all chats (app icon badge).
+    public func totalUnreadCount() -> Int {
+        lock.lock()
+        defer { lock.unlock() }
+
+        return conversations.values.reduce(0) { $0 + $1.unreadCount }
     }
 
     public func markConversationRead(conversationId: String) {
@@ -223,6 +285,16 @@ public final class LocalDatabaseManager: @unchecked Sendable {
         }
 
         return results.sorted { $0.timestamp > $1.timestamp }
+    }
+
+    /// Highest sequence id among the messages actually stored on this device (0 if none).
+    /// This is the cursor for syncing. `ConversationItem.lastSequenceId` is the server's newest
+    /// number and must not be used for it, or messages we never downloaded would be skipped.
+    public func latestStoredSequenceId(conversationId: String) -> Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+
+        return messagesByConversation[conversationId]?.map(\.sequenceId).max() ?? 0
     }
 
     // MARK: - Clear / Reset

@@ -1,7 +1,8 @@
-/* English Localization for Mini Telegram */
+/* English Localization for Our Chat */
 
 /* Navigation & Tabs */
 "tab_chats" = "Chats";
+"tab_profile" = "Profile";
 "tab_calls" = "Calls";
 "tab_community" = "Groups";
 "tab_settings" = "Settings";
@@ -21,8 +22,8 @@
 "action_share" = "Share";
 
 /* Onboarding & Authentication */
-"auth_welcome_title" = "Mini Telegram";
-"auth_welcome_subtitle" = "Private, end-to-end encrypted team communication";
+"auth_welcome_title" = "Our Chat";
+"auth_welcome_subtitle" = "Private, end-to-end encrypted messaging, calls & friends";
 "auth_enter_invite_code" = "Enter Invitation Code";
 "auth_invite_code_placeholder" = "e.g. invite_...";
 "auth_verify_invite_button" = "Verify Invitation";
@@ -135,3 +136,36 @@
 "error_invalid_credentials" = "Invalid username or password";
 "error_session_expired" = "Your session has expired. Please log in again.";
 "error_crypto_failure" = "Cryptographic operation failed";
+
+/* Notifications when the app is closed (Bark relay) */
+"bark_settings_row" = "Notifications";
+"bark_title" = "Notifications";
+"bark_permission_header" = "Our Chat notifications";
+"bark_permission_off" = "Notifications for Our Chat are turned off, so new messages can't alert you.";
+"bark_permission_allow" = "Allow notifications";
+"bark_permission_open_settings" = "Turn on in Settings";
+"bark_closed_header" = "When Our Chat is closed";
+"bark_explain" = "When you swipe Our Chat away, iPhone stops it completely, so it can't alert you by itself. The free Bark app can: the Our Chat server sends your alerts to Bark, with sound, even when Our Chat is closed. Tap an alert to open the chat.";
+"bark_step_get" = "1. Get Bark (free)";
+"bark_step_copy" = "2. Open Bark and tap Allow for its notifications. Then copy the address it shows (it starts with https://api.day.app/).";
+"bark_step_paste" = "3. Paste the address here and tap Connect:";
+"bark_key_placeholder" = "https://api.day.app/…";
+"bark_connect" = "Connect";
+"bark_reconnect" = "Connect again";
+"bark_enabled" = "Alerts through Bark";
+"bark_message_sound" = "Message sound";
+"bark_call_sound" = "Call sound";
+"bark_sound_ping" = "ping (Our Chat)";
+"bark_send_test" = "Send test alert";
+"bark_disconnect" = "Disconnect Bark";
+"bark_privacy" = "Alerts say who wrote, never what they wrote: your messages stay end-to-end encrypted.";
+"bark_ping_header" = "Our Chat sound in Bark";
+"bark_ping_steps" = "To hear Our Chat's ping: save the sound to Files below, then in Bark open its sound settings, upload ping.caf, and choose \"ping (Our Chat)\" above.";
+"bark_ping_save" = "Save ping sound";
+"bark_not_now" = "Not now";
+"bark_done" = "Done";
+"bark_error_empty_key" = "Paste the address from the Bark app first.";
+"bark_error_key_rejected" = "Bark stopped accepting this address (it was reset, or Bark was deleted). Copy the address from Bark again and connect.";
+"bark_error_unreachable" = "Couldn't reach Bark the last time. Check the server's internet connection.";
+"bark_notice_connected" = "Connected. A test alert is on its way to Bark.";
+"bark_notice_test_sent" = "Test alert sent. It should arrive in a few seconds.";

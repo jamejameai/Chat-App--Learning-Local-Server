@@ -37,8 +37,9 @@ public struct GroupsListView: View {
             }
         }
         .sheet(isPresented: $isShowingCreateGroup) {
-            CreateGroupSheet(groupsViewModel: viewModel) { newGroup in
+            CreateGroupSheet { newGroup in
                 self.selectedGroup = newGroup
+                viewModel.loadGroups()
             }
         }
         .task {
@@ -90,7 +91,7 @@ public struct GroupRowView: View {
 
     public var body: some View {
         HStack(spacing: AppSpacing.sm) {
-            AvatarView(name: group.title, size: 52)
+            AvatarView(name: group.title, avatarUrl: group.avatarUrl, size: 52)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {

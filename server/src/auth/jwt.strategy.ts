@@ -22,11 +22,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: JwtPayload) {
+  async validate(payload: any) {
+    const deviceId = payload.deviceId || payload.device_id;
     // 1. Validate that device is not revoked
     const deviceRes = await this.db.query(
       'SELECT is_revoked FROM devices WHERE id = $1 AND user_id = $2',
-      [payload.device_id, payload.sub],
+      [deviceId, payload.sub],
     );
 
     if (deviceRes.rows.length === 0 || deviceRes.rows[0].is_revoked) {
@@ -45,7 +46,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
     return {
       userId: payload.sub,
-      deviceId: payload.device_id,
+      deviceId,
       role: userRes.rows[0].role,
       username: payload.username,
     };

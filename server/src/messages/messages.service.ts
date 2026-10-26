@@ -7,6 +7,7 @@ import {
 import { DatabaseService } from '../database/database.service';
 import { SubmitMessageDto } from './dto/submit-message.dto';
 import { RealtimeGateway } from '../realtime/realtime.gateway';
+import { BarkRelayService } from '../notifications/bark-relay.service';
 
 @Injectable()
 export class MessagesService {
@@ -15,6 +16,7 @@ export class MessagesService {
   constructor(
     private readonly db: DatabaseService,
     private readonly realtimeGateway: RealtimeGateway,
+    private readonly barkRelay: BarkRelayService,
   ) {}
 
   async submitMessage(
@@ -88,6 +90,14 @@ export class MessagesService {
         ],
       );
 
+      // The sender has read their own message: it must never count as unread (badge) for them
+      await client.query(
+        `UPDATE conversation_members
+         SET last_read_sequence_id = GREATEST(last_read_sequence_id, $1)
+         WHERE conversation_id = $2 AND user_id = $3`,
+        [sequenceId, conversationId, userId],
+      );
+
       return {
         id: insertRes.rows[0].id,
         conversation_id: conversationId,
@@ -104,8 +114,10 @@ export class MessagesService {
       };
     });
 
-    // 4. Broadcast in real time over WebSocket to conversation room
-    this.realtimeGateway.notifyNewMessage(conversationId, message);
+    // 4. Push in real time to the other members (fire-and-forget; the sender is not kept waiting)
+    void this.realtimeGateway.notifyNewMessage(conversationId, message);
+    // ...and alert those whose app is closed or in the background
+    void this.barkRelay.onNewMessage(conversationId, userId, dto.envelope_type);
 
     return message;
   }
@@ -143,10 +155,14 @@ export class MessagesService {
          WHERE conversation_id = $2 AND user_id = $3`,
         [seq, conversationId, userId],
       );
+      // The chat has been read: its alert on the phone is no longer needed
+      void this.barkRelay.onConversationRead(userId, conversationId);
     }
 
     const receiptPayload = {
       message_id: messageId,
+      // Lets the sender mark every message up to this one as seen
+      sequence_id: msgRes.rows[0].sequence_id,
       conversation_id: conversationId,
       user_id: userId,
       device_id: deviceId,
@@ -155,7 +171,7 @@ export class MessagesService {
     };
 
     // 4. Broadcast receipt event over WebSocket
-    this.realtimeGateway.notifyReceipt(conversationId, receiptPayload);
+    void this.realtimeGateway.notifyReceipt(conversationId, receiptPayload);
 
     return { success: true, ...receiptPayload };
   }

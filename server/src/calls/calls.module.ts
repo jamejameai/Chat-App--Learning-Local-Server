@@ -4,9 +4,10 @@ import { CallsController } from './calls.controller';
 import { CallsService } from './calls.service';
 import { DatabaseModule } from '../database/database.module';
 import { RealtimeModule } from '../realtime/realtime.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [DatabaseModule, ConfigModule, RealtimeModule],
+  imports: [DatabaseModule, ConfigModule, RealtimeModule, NotificationsModule],
   controllers: [CallsController],
   providers: [CallsService],
   exports: [CallsService],

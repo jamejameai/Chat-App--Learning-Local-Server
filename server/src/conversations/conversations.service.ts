@@ -22,21 +22,37 @@ export class ConversationsService {
     const res = await this.db.query(
       `SELECT c.id, c.type, c.title, c.avatar_url, c.last_sequence_id, c.last_message_at, c.created_at,
               cm.role, cm.last_read_sequence_id, cm.is_pinned, cm.is_muted,
-              (c.last_sequence_id - cm.last_read_sequence_id) as unread_count,
-              (SELECT COUNT(*) FROM conversation_members WHERE conversation_id = c.id) as member_count
+              -- Unread = messages from OTHER people after my read position (my own never count)
+              (SELECT COUNT(*) FROM messages um
+                WHERE um.conversation_id = c.id
+                  AND um.sequence_id > cm.last_read_sequence_id
+                  AND um.sender_user_id != $1) AS unread_count,
+              (SELECT COUNT(*) FROM conversation_members WHERE conversation_id = c.id) as member_count,
+              -- Latest message, still encrypted: the app decrypts it for the chat-list preview
+              lm.sender_user_id AS last_message_sender_id,
+              lm.envelope_type AS last_message_envelope_type,
+              lm.encrypted_payload AS last_message_payload,
+              lm.iv AS last_message_iv
        FROM conversations c
        JOIN conversation_members cm ON cm.conversation_id = c.id
+       LEFT JOIN LATERAL (
+         SELECT m.sender_user_id, m.envelope_type, m.encrypted_payload, m.iv
+         FROM messages m
+         WHERE m.conversation_id = c.id
+         ORDER BY m.sequence_id DESC
+         LIMIT 1
+       ) lm ON TRUE
        WHERE cm.user_id = $1
        ORDER BY cm.is_pinned DESC, c.last_message_at DESC NULLS LAST, c.created_at DESC`,
       [userId],
     );
 
-    // For direct chats, enhance with recipient's display name and avatar
+    // For direct chats, enhance with recipient's display name, avatar, online status, and last seen
     const conversations = [];
     for (const conv of res.rows) {
       if (conv.type === 'direct') {
         const otherRes = await this.db.query(
-          `SELECT u.id, u.username, u.display_name, u.avatar_url
+          `SELECT u.id, u.username, u.display_name, u.avatar_url, u.role, u.border_template, u.name_color, u.last_seen_at
            FROM conversation_members cm
            JOIN users u ON u.id = cm.user_id
            WHERE cm.conversation_id = $1 AND cm.user_id != $2
@@ -48,6 +64,12 @@ export class ConversationsService {
           conv.title = other.display_name || other.username;
           conv.avatar_url = other.avatar_url;
           conv.recipient_user_id = other.id;
+          conv.recipient_username = other.username;
+          conv.recipient_role = other.role;
+          conv.recipient_border_template = other.border_template;
+          conv.recipient_name_color = other.name_color ?? (other.role === 'owner' || other.username?.toLowerCase() === 'jame.kh' ? '#FF3B30' : null);
+          conv.is_online = this.realtimeGateway.isUserOnline(other.id);
+          conv.last_seen = other.last_seen_at ? new Date(other.last_seen_at).toISOString() : null;
         }
       }
       conversations.push(conv);
@@ -57,6 +79,9 @@ export class ConversationsService {
   }
 
   async createConversation(creatorUserId: string, dto: CreateConversationDto) {
+    if (dto.type !== 'direct' && !dto.title?.trim()) {
+      throw new BadRequestException('Group name is required');
+    }
     if (dto.type === 'direct') {
       if (dto.participant_user_ids.length !== 1) {
         throw new BadRequestException('Direct conversation requires exactly one other participant');
@@ -81,13 +106,13 @@ export class ConversationsService {
       }
     }
 
-    return await this.db.transaction(async (client) => {
+    const created = await this.db.transaction(async (client) => {
       // 1. Insert conversation
       const convRes = await client.query(
         `INSERT INTO conversations (type, title, created_by_user_id)
          VALUES ($1, $2, $3)
          RETURNING id, type, title, created_by_user_id, last_sequence_id, created_at`,
-        [dto.type, dto.title || null, creatorUserId],
+        [dto.type, dto.title?.trim() || null, creatorUserId],
       );
       const conv = convRes.rows[0];
 
@@ -112,6 +137,15 @@ export class ConversationsService {
 
       return conv;
     });
+
+    // The new chat appears on the other members' phones right away (fire-and-forget)
+    void this.realtimeGateway.emitToMembers(
+      created.id,
+      'conversation.created',
+      { conversation_id: created.id, type: created.type },
+      creatorUserId,
+    );
+    return created;
   }
 
   async getConversation(conversationId: string, userId: string) {
@@ -138,7 +172,18 @@ export class ConversationsService {
        ORDER BY cm.role ASC, cm.joined_at ASC`,
       [conversationId],
     );
-    conv.members = membersRes.rows;
+    conv.members = membersRes.rows.map((m: any) => ({
+      ...m,
+      is_online: this.realtimeGateway.isUserOnline(m.id),
+    }));
+
+    if (conv.type === 'direct') {
+      const other = membersRes.rows.find((m: any) => m.id !== userId);
+      if (other) {
+        conv.recipient_user_id = other.id;
+        conv.is_online = this.realtimeGateway.isUserOnline(other.id);
+      }
+    }
 
     return conv;
   }
@@ -163,7 +208,8 @@ export class ConversationsService {
       `SELECT m.id, m.conversation_id, m.sender_user_id, m.sender_device_id,
               m.sequence_id, m.envelope_type, m.encrypted_payload, m.iv,
               m.reply_to_message_id, m.is_edited, m.is_deleted, m.created_at,
-              u.username as sender_username, u.display_name as sender_display_name
+              u.username as sender_username, u.display_name as sender_display_name,
+              u.role as sender_role, u.name_color as sender_name_color
        FROM messages m
        JOIN users u ON u.id = m.sender_user_id
        WHERE m.conversation_id = $1 AND m.sequence_id > $2
@@ -177,10 +223,20 @@ export class ConversationsService {
       [conversationId],
     );
 
+    // How far the other members have read: lets the sender show "Seen" even if they
+    // missed the live receipt (app closed, offline, chat not open)
+    const readRes = await this.db.query(
+      `SELECT MAX(last_read_sequence_id) AS read_up_to
+       FROM conversation_members
+       WHERE conversation_id = $1 AND user_id != $2`,
+      [conversationId, userId],
+    );
+
     return {
       conversation_id: conversationId,
       messages: msgsRes.rows,
       latest_sequence_id: convRes.rows[0]?.last_sequence_id || 0,
+      read_up_to_sequence_id: readRes.rows[0]?.read_up_to || 0,
       has_more: msgsRes.rows.length === limit,
     };
   }
